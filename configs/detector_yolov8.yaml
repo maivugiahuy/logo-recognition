@@ -1,0 +1,13 @@
+# Class-agnostic logo detector — YOLOv8m (substitute for YoloV4/PL2K)
+model: yolov8m.pt
+data: data/processed/detector_yolo/dataset.yaml
+imgsz: 512
+epochs: 50
+batch: 16
+device: 0
+project: checkpoints
+name: yolov8_logo
+exist_ok: true
+patience: 10
+save_period: 10
+conf_thresholds: [0.4, 0.1, 0.01]

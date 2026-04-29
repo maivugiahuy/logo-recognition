@@ -1,0 +1,50 @@
+# Phase C: closed-set ViT-B/32 + ProxyNCAHN++ (Table 4)
+mode: closed_set
+backbone: vit_b32_openai
+input_size: 160
+embed_dim: 128
+init_from: checkpoints/vit_base.pt
+
+optimizer:
+  trunk_lr: 3.0e-6
+  fc_lr: 3.0e-4
+  proxy_lr: 63
+  trunk_wd: 0.2
+  fc_wd: 0.001
+  proxy_wd: 0.0
+  trunk_beta2: 0.98
+  fc_beta2: 0.98
+  proxy_beta2: 0.999
+  trunk_eps: 1.0e-6
+  fc_eps: 1.0e-6
+  proxy_eps: 1.0
+
+scheduler:
+  patience: 2
+  factor: 0.25
+
+training:
+  epochs: 25        # keep full 25 for HN phase — more important
+  k: 24
+  m: 4
+
+amp: true
+compile: true
+num_workers: 8
+
+loss:
+  sigma: 0.06
+
+hn_mining:
+  map_path: data/processed/hn_map.json
+  alpha1: 0.05
+  alpha2: 0.35
+  levenshtein_min: 2
+
+data:
+  split: closed_set
+  min_side: 10
+
+augmentation:
+  color_jitter: true
+  random_perspective: true

@@ -1,0 +1,33 @@
+# Core
+torch>=2.4.0
+torchvision>=0.19.0
+
+# CLIP vision backbone
+open_clip_torch>=2.26.1
+
+# Logo detector
+ultralytics>=8.2.0
+
+# Approximate nearest neighbor
+# BUG FIX: faiss-gpu không có trên PyPI cho Windows → dùng faiss-cpu
+# Linux CUDA12: thay bằng  pip install faiss-gpu-cu12
+#               hoặc       conda install -c pytorch -c nvidia faiss-gpu
+faiss-cpu>=1.8.0
+
+# Data / IO
+pandas>=2.2.0
+pyarrow>=16.0.0
+pillow>=10.0.0
+imagehash>=4.3.1
+
+# Hard-negative mining
+python-Levenshtein>=0.25.0
+
+# Config
+pyyaml>=6.0
+
+# Utilities
+tqdm>=4.66.0
+scikit-learn>=1.5.0
+matplotlib>=3.9.0
+numpy>=1.26.0
