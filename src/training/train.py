@@ -54,7 +54,7 @@ def recall_at_1(embedder: nn.Module, loader: DataLoader, device: torch.device) -
 
 
 def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
-    with open(cfg_path) as f:
+    with open(cfg_path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

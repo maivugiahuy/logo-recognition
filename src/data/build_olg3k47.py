@@ -33,7 +33,7 @@ MIN_INSTANCES = 20
 
 def load_aliases() -> dict[str, str]:
     """Return alias→canonical mapping (many-to-one)."""
-    with open(ALIASES_PATH) as f:
+    with open(ALIASES_PATH, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     mapping: dict[str, str] = {}
     for canonical, aliases in data.items():

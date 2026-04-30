@@ -9,7 +9,7 @@ from ultralytics import YOLO
 
 
 def train_detector(cfg_path: str = "configs/detector_yolov8.yaml") -> None:
-    with open(cfg_path) as f:
+    with open(cfg_path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
     model = YOLO(cfg["model"])

@@ -176,16 +176,19 @@ Pipeline: YOLOv8 detect → crop 160×160 → ViT embed → FAISS top-1 → bran
 
 ## Compute budget (1× RTX 5060 Ti 16 GB, Windows, no torch.compile)
 
-| Phase | Time |
-|---|---|
-| Build dataset (LogoDet-3K only) | ~45 min |
-| Smoke test | ~15 min |
-| Phase A (base train) | ~3–4 h |
-| HN mining | ~30 min |
-| Phase C (HN train) | ~5–7 h |
-| Detector | ~6–8 h |
-| Galleries + eval | ~1–2 h |
-| **Total** | **~17–24 h** |
+LogoDet-3K có ~158K images (87% so với composite 181K cũ).
+Phase A/C nhanh hơn tương ứng; gallery/eval giảm mạnh vì chỉ còn 1 dataset.
+
+| Phase | Căn cứ tính | Thời gian |
+|---|---|---|
+| Build dataset | Parse ~158K XML + dedupe phash | ~30–45 min |
+| Smoke test | 50 classes, 5 epochs, CPU/GPU warm-up | ~15 min |
+| Phase A (base train) | ~101K images × 10 epochs, batch 192, AMP bf16 | ~2.5–3.5 h |
+| HN mining | Embed ~126K images, build confusion matrix | ~25 min |
+| Phase C (HN train) | ~126K images × 18 epochs, batch 192, AMP bf16 | ~4.5–6 h |
+| Detector (YOLOv8m) | ~158K images, 50 epochs, 512px | ~6–8 h |
+| Galleries + eval | 1 dataset, FAISS index + recall@1 | ~15–20 min |
+| **Total** | | **~14–19 h** |
 
 ## Key hyperparameters (Tables 3 + 5)
 
