@@ -1,0 +1,48 @@
+# Class name merge rules — Appendix B.2
+# Format: canonical_name: [alias1, alias2, ...]
+coca_cola:
+  - cocacola
+  - coca cola
+louisvuitton:
+  - lv
+the_north_face:
+  - northface
+  - north face
+mcdonalds:
+  - mc donalds
+  - mcdonald
+pepsi:
+  - pepsi cola
+heineken:
+  - heineken beer
+starbucks:
+  - starbucks coffee
+adidas:
+  - adidas originals
+nike:
+  - nike sport
+prada:
+  - prada sport
+gucci:
+  - gucci sport
+ferrari:
+  - ferrari sport
+bmw:
+  - bmw car
+mercedes_benz:
+  - mercedesbenz
+  - mercedes benz
+volkswagen:
+  - vw
+rolls_royce:
+  - rollsroyce
+jack_daniels:
+  - jack daniel
+bacardi:
+  - bacardi rum
+corona:
+  - corona beer
+budweiser:
+  - budweiser beer
+heinz:
+  - h j heinz

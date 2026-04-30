@@ -104,18 +104,14 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 | Dataset | Size | Download | Destination |
 |---|---|---|---|
-| LogoDet3K | ~3 GB | [GitHub](https://www.kaggle.com/datasets/lyly99/logodet3kt) → Releases | `data/raw/logodet3k/` |
+| LogoDet-3K | ~3 GB | [Kaggle](https://www.kaggle.com/datasets/lyly99/logodet3k) | `data/raw/LogoDet-3K/` |
 | QMUL-OpenLogo | ~2 GB | [qmul-openlogo.github.io](https://qmul-openlogo.github.io/) | `data/raw/openlogo/` |
-| FlickrLogos-47 | ~150 MB | [multimedia-computing.de](https://www.kaggle.com/datasets/samikshakolhe/flicker-47-logo-images-dataset) | `data/raw/flickr47/` |
-| BelgaLogos | ~70 MB | [INRIA page](http://www-sop.inria.fr/members/Alexis.Joly/BelgaLogos/BelgaLogos.html) | `data/raw/belga/` |
-| LogosInTheWild | ~1 GB | [Fraunhofer IOSB](https://zenodo.org/records/5101018) | `data/raw/litw/` |
+| FlickrLogos-47 | ~150 MB | [Kaggle](https://www.kaggle.com/datasets/samikshakolhe/flicker-47-logo-images-dataset) | `data/raw/FlickrLogos_47/` |
 
 > **Lưu ý:**
-> - **LogoDet3K**: giải nén rồi đặt các class folder vào `data/raw/logodet3k/`. Mỗi folder là 1 class, chứa ảnh + annotation JSON.
-> - **QMUL-OpenLogo**: giải nén, cấu trúc là `images/` + `annotations/` (VOC XML). Đặt cả 2 vào `data/raw/openlogo/`.
-> - **FlickrLogos-47**: giải nén, mỗi class là 1 folder chứa ảnh `.jpg` + annotation `.txt`. Đặt vào `data/raw/flickr47/`.
-> - **BelgaLogos**: ảnh + annotation CSV/XML. Đặt vào `data/raw/belga/` (chỉ dùng để eval, không train).
-> - **LogosInTheWild**: ảnh + annotation CSV/XML. Đặt vào `data/raw/litw/` (chỉ dùng để eval).
+> - **LogoDet-3K**: giải nén, đặt vào `data/raw/LogoDet-3K/`. Cấu trúc: `LogoDet-3K/{category}/{ClassName}/{id}.jpg` + `{id}.xml`
+> - **QMUL-OpenLogo**: giải nén, đặt vào `data/raw/openlogo/`. Cấu trúc: `openlogo/Annotations/*.xml` + `openlogo/JPEGImages/*.jpg`
+> - **FlickrLogos-47**: giải nén, đặt vào `data/raw/FlickrLogos_47/`. Cấu trúc: `FlickrLogos_47/train/{classID:06d}/*.png` + `*.gt_data.txt`
 
 ### Step 3 — Build OpenLogoDet3K47
 ```bash
