@@ -42,9 +42,9 @@ class OLG3K47Dataset(Dataset):
         else:
             # closed_set: {class_name: [image_paths]}
             keep_rows = []
-            for cls, imgs in split_data.items():
+            for class_name, imgs in split_data.items():
                 img_set = set(imgs)
-                rows = df[(df["class_name"] == cls) & (df["image_path"].isin(img_set))]
+                rows = df[(df["class_name"] == class_name) & (df["image_path"].isin(img_set))]
                 keep_rows.append(rows)
             df = pd.concat(keep_rows, ignore_index=True) if keep_rows else df.iloc[:0]
 
