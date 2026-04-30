@@ -4,6 +4,8 @@ Training loop — open-set (Phase A) and closed-set (Phase C).
 Speed opts: AMP mixed precision, torch.compile, num_workers=8.
 """
 import json
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="open_clip")
 from pathlib import Path
 
 import torch

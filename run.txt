@@ -1,0 +1,10 @@
+python -c "
+import pandas as pd
+from pathlib import Path
+df = pd.read_parquet('data/processed/openlogodet3k47/annotations.parquet')
+before = len(df)
+df = df[df['image_path'].apply(lambda p: Path(p).exists())].reset_index(drop=True)
+print(f'Filtered: {before} -> {len(df)} ({before - len(df)} missing)')
+df.to_parquet('data/processed/openlogodet3k47/annotations.parquet', index=False)
+print('Done.')
+"

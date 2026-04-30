@@ -4,6 +4,8 @@ Smoke test — Step 4.
 Gate: loss decreasing; recall@1 on smoke subset > 0.5.
 """
 import sys
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="open_clip")
 sys.path.insert(0, ".")
 
 import random
