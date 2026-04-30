@@ -132,10 +132,17 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
 
     # torch.compile — free ~10-20% on Ampere/Ada GPUs (skip on CPU)
     # Đặt SAU optimizer để param groups đã được gắn vào đúng tensor objects.
-    use_compile = device.type == "cuda" and cfg.get("compile", True)
+    import platform
+    use_compile = (
+        device.type == "cuda"
+        and cfg.get("compile", True)
+        and platform.system() != "Windows"  # Triton không hỗ trợ Windows
+    )
     if use_compile:
         embedder = torch.compile(embedder)
         print("torch.compile enabled")
+    else:
+        print(f"torch.compile disabled (Windows or CPU)")
     scheduler = ReduceLROnPlateau(
         optimizer,
         patience=cfg["scheduler"]["patience"],

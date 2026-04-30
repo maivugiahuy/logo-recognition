@@ -64,9 +64,9 @@ def _apply_aliases(name: str, aliases: dict[str, str]) -> str:
 def parse_logodet3k() -> list[dict]:
     """LogoDet-3K: Pascal VOC XML annotations.
 
-    Layout: DATASET_ROOT/LogoDet-3K/{category}/{ClassName}/{id}.xml
-    The image sits in the same folder: {id}.jpg (same stem as XML).
-    The class name is embedded in <object><name> inside the XML.
+    Layout: DATASET_ROOT/LogoDet-3K/{category}/{ClassName}/{id}.xml + {id}.jpg
+    Image path = xml stem + .jpg (same folder). Do NOT use <filename> tag because
+    some XMLs have mismatched filenames (e.g. "msn1 (38).jpg" vs actual "38.jpg").
     """
     root = DATASET_ROOT / "LogoDet-3K"
     if not root.exists():
@@ -75,8 +75,31 @@ def parse_logodet3k() -> list[dict]:
     ann_files = list(root.rglob("*.xml"))
     records = []
     for xml_path in tqdm(ann_files, desc="LogoDet-3K"):
-        # img_dir=None → image assumed in same folder as XML
-        records.extend(_parse_voc_xml(xml_path, "logodet3k", img_dir=None))
+        # Derive image path from XML stem — more reliable than <filename> tag
+        img_path = xml_path.with_suffix(".jpg")
+        if not img_path.exists():
+            img_path = xml_path.with_suffix(".png")
+        if not img_path.exists():
+            continue  # skip if no matching image
+        try:
+            tree = ET.parse(xml_path)
+            xml_root = tree.getroot()
+        except ET.ParseError:
+            continue
+        for obj in xml_root.findall("object"):
+            name = obj.findtext("name", "unknown")
+            bnd = obj.find("bndbox")
+            if bnd is None:
+                continue
+            records.append({
+                "image_path": str(img_path),
+                "class_name": name,
+                "x1": float(bnd.findtext("xmin", "0")),
+                "y1": float(bnd.findtext("ymin", "0")),
+                "x2": float(bnd.findtext("xmax", "0")),
+                "y2": float(bnd.findtext("ymax", "0")),
+                "source": "logodet3k",
+            })
     return records
 
 
