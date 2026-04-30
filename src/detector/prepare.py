@@ -7,6 +7,7 @@ Output structure:
     labels/{train,val,test}/
     dataset.yaml
 """
+import hashlib
 import json
 import shutil
 import xml.etree.ElementTree as ET
@@ -56,7 +57,7 @@ def prepare_yolo_dataset() -> None:
         (OUT / "images" / split).mkdir(parents=True, exist_ok=True)
         (OUT / "labels" / split).mkdir(parents=True, exist_ok=True)
 
-    processed_imgs: set[tuple[str, str]] = set()
+    processed_imgs: set[str] = set()
 
     for img_path, group in tqdm(df.groupby("image_path"), desc="Preparing YOLO"):
         img_path = Path(img_path)
@@ -68,14 +69,17 @@ def prepare_yolo_dataset() -> None:
         except Exception:
             continue
 
-        # Copy image
-        dest_img = OUT / "images" / split / img_path.name
+        # Tên file unique: hash 8 ký tự của full path + tên gốc
+        # Tránh collision khi nhiều class dùng tên file giống nhau (1.jpg, 2.jpg...)
+        uid = hashlib.md5(str(img_path).encode()).hexdigest()[:8]
+        unique_stem = f"{uid}_{img_path.stem}"
+        dest_img = OUT / "images" / split / f"{unique_stem}{img_path.suffix}"
         if not dest_img.exists():
             shutil.copy2(img_path, dest_img)
 
         # Write label file (class-agnostic: class 0)
-        label_path = OUT / "labels" / split / (img_path.stem + ".txt")
-        if (img_path.name, split) not in processed_imgs:
+        label_path = OUT / "labels" / split / f"{unique_stem}.txt"
+        if str(img_path) not in processed_imgs:
             with open(label_path, "w") as f:
                 for _, row in group.iterrows():
                     xc, yc, w, h = _to_yolo_bbox(
@@ -87,7 +91,7 @@ def prepare_yolo_dataset() -> None:
                     w = max(0.001, min(1.0, w))
                     h = max(0.001, min(1.0, h))
                     f.write(f"0 {xc:.6f} {yc:.6f} {w:.6f} {h:.6f}\n")
-            processed_imgs.add((img_path.name, split))
+            processed_imgs.add(str(img_path))
 
     # Write dataset.yaml
     dataset_cfg = {

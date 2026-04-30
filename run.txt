@@ -1,1 +1,2 @@
-python -c "from src.detector.detect import evaluate_ap; evaluate_ap('runs/detect/checkpoints/yolov8_logo/weights/best.pt')"
+rmdir /s /q data\processed\detector_yolo
+python scripts/05_train_detector.py
