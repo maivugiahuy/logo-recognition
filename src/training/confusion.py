@@ -32,18 +32,24 @@ def build_confusion_matrix(
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Use closed-set val split (all seen classes)
-    val_ds = OLG3K47Dataset.from_split(
-        ANN, SPLITS / "closed_val.json",
-        transform=val_transforms(input_size), mode="closed_set",
-    )
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=4)
+    # Load checkpoint first to get the exact number of proxy classes
+    state = torch.load(ckpt_path, map_location=device)
+    num_classes = state["proxy"]["proxies"].shape[0]
 
-    class_names = [k for k, v in sorted(val_ds.class_to_idx.items(), key=lambda x: x[1])]
-    num_classes = len(class_names)
+    # Use open-set train split — same classes the Phase A model was trained on
+    train_ds = OLG3K47Dataset.from_split(
+        ANN, SPLITS / "open_train.json",
+        transform=val_transforms(input_size), mode="open_set",
+    )
+    val_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False, num_workers=4)
+
+    class_names = [k for k, v in sorted(train_ds.class_to_idx.items(), key=lambda x: x[1])]
+    assert len(class_names) == num_classes, (
+        f"Class count mismatch: checkpoint has {num_classes} proxies "
+        f"but split has {len(class_names)} classes"
+    )
 
     embedder = build_vit_embedder(embed_dim, input_size).to(device)
-    state = torch.load(ckpt_path, map_location=device)
     embedder.load_state_dict(state["embedder"])
 
     proxy_head = ProxyHead(num_classes, embed_dim).to(device)
