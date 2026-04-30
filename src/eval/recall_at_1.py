@@ -43,7 +43,7 @@ def _embed_dataset(
         for imgs, labels in tqdm(loader, desc="Embedding", leave=False):
             embs = embedder(imgs.to(device)).cpu().numpy()
             all_embs.append(embs)
-            all_labels.extend(labels)
+            all_labels.extend(labels.tolist())
     embs = np.concatenate(all_embs).astype("float32")
     # Map idx→name
     idx_to_cls = {v: k for k, v in ds.class_to_idx.items()}
@@ -73,8 +73,11 @@ def query_vs_gallery(
     query_idx, gallery_idx = [], []
     for cls, indices in class_to_indices.items():
         rng.shuffle(indices)
-        query_idx.extend(indices[:n_query])
-        gallery_idx.extend(indices[n_query:])
+        # Adaptive: dùng tối đa 1/3 làm query, ít nhất 1 gallery còn lại
+        # Tránh trường hợp class nhỏ có 0 ảnh trong gallery
+        n_q = min(n_query, max(1, len(indices) - 1), len(indices) // 3 + 1)
+        query_idx.extend(indices[:n_q])
+        gallery_idx.extend(indices[n_q:])
 
     q_embs = embs[query_idx]
     g_embs = embs[gallery_idx]
@@ -152,7 +155,8 @@ def evaluate(
     for cls, indices in class_to_indices.items():
         shuffled = indices.copy()
         rng.shuffle(shuffled)
-        query_idx.extend(shuffled[:N_QUERY_PER_CLASS])
+        n_q = min(N_QUERY_PER_CLASS, max(1, len(shuffled) - 1), len(shuffled) // 3 + 1)
+        query_idx.extend(shuffled[:n_q])
 
     q_min_sides = [min_sides[i] for i in query_idx]
     small_mask = [s < SMALL_THRESHOLD for s in q_min_sides]
