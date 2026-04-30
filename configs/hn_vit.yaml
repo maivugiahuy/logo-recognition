@@ -27,14 +27,14 @@ early_stopping_patience: 6  # dừng hẳn nếu không cải thiện sau 6 epoc
 
 training:
   epochs: 25
-  k: 48
+  k: 96
   m: 8
 
 amp: true
 compile: false      # torch.compile không chạy trên Windows (Triton missing)
 num_workers: 8
 persistent_workers: true
-freeze_blocks: 4
+freeze_blocks: 0    # unfreeze toàn bộ 12 blocks
 
 loss:
   sigma: 0.06
