@@ -16,15 +16,15 @@ Paper: *Image-Text Pre-Training for Logo Recognition* (Hubenthal & Kumar, Amazon
 |---|---|---|
 | CLIP pretraining on 20M e-comm pairs | OpenAI pretrained ViT-B/32 weights | Table 3: OpenAI IT ≥ E-comm IT; 20M pairs unavailable |
 | YoloV4 on Amazon PL2K | YOLOv8m on LogoDet3K | PL2K is proprietary |
-| 4× V100 | Single GPU + AMP + torch.compile | Hardware |
+| 4× V100 | 1× RTX 5060 Ti 16GB + AMP bfloat16 | Hardware |
 
 ## Speed optimizations applied
 
 - AMP mixed precision (bfloat16) — ~2× faster
-- `torch.compile` — ~10–20%
+- `torch.compile` — **disabled on Windows** (Triton không hỗ trợ Windows); mất ~15–20%
 - Freeze first 8 of 12 ViT blocks — ~60% less backward compute
-- `num_workers=8`
-- Phase A epochs 25→15
+- `num_workers=4` + `persistent_workers=True` — tối ưu cho Windows multiprocessing
+- Phase A epochs 25→10, Phase C 25→18 (early stopping dừng sớm hơn)
 - Scheduler patience 4→2
 
 ## Execution steps
@@ -137,26 +137,26 @@ python scripts/smoke_test.py
 ```
 Gate: loss decreasing + recall@1 > 0.5
 
-### Step 5 — Phase A: base ViT (8–12 h → ~4–6 h with opts)
+### Step 5 — Phase A: base ViT (~3–4 h)
 ```bash
 python scripts/02_train_base.py --config configs/base_vit.yaml
 ```
 - LR: trunk 2.3e-6, FC 1.5e-3, proxy 71
-- Batch 192 (k=24, m=4), 15 epochs, σ=0.06
+- Batch 192 (k=24, m=4), max 10 epochs, early stopping patience 6, σ=0.06
 - Gate: val recall@1 ≈ 0.97–0.98
 
-### Step 6 — Hard-negative mining (30–60 min)
+### Step 6 — Hard-negative mining (~30 min)
 ```bash
 python scripts/03_mine_hn.py --ckpt checkpoints/vit_base.pt
 ```
 - h(yi) = {yj : 0.05 ≤ C[i,j] ≤ 0.35 AND levenshtein(name_i, name_j) > 2}
 - Output: `data/processed/hn_map.json`
 
-### Step 7 — Phase C: ProxyNCAHN++ (10–14 h)
+### Step 7 — Phase C: ProxyNCAHN++ (~5–7 h)
 ```bash
 python scripts/04_train_hn.py --config configs/hn_vit.yaml
 ```
-- Init from `vit_base.pt`, closed-set, 25 epochs
+- Init từ `vit_base.pt`, closed-set, max 18 epochs, early stopping patience 6
 - Gate: recall@1 ≈ 0.96
 
 ### Step 8 — Logo detector (6–10 h)
@@ -188,18 +188,18 @@ python scripts/08_demo.py your_image.jpg --save_dir results/
 ```
 Pipeline: YOLOv8 detect → crop 160×160 → ViT embed → FAISS top-1 → brand label
 
-## Compute budget (1× RTX 5060 Ti 16 GB)
+## Compute budget (1× RTX 5060 Ti 16 GB, Windows, no torch.compile)
 
 | Phase | Time |
 |---|---|
-| Download + build dataset | 4–8 h |
-| Smoke test | 30 min |
-| Phase A (base train) | 4–6 h |
-| HN mining | 30–60 min |
-| Phase C (HN train) | 10–14 h |
-| Detector | 6–10 h |
-| Galleries + eval | 2–3 h |
-| **Total** | **~27–43 h** |
+| Build dataset | 1–2 h |
+| Smoke test | ~15 min |
+| Phase A (base train) | ~3–4 h |
+| HN mining | ~30 min |
+| Phase C (HN train) | ~5–7 h |
+| Detector | ~6–8 h |
+| Galleries + eval | ~1–2 h |
+| **Total** | **~17–24 h** |
 
 ## Key hyperparameters (Tables 3 + 5)
 

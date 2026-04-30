@@ -31,8 +31,9 @@ training:
   m: 4
 
 amp: true
-compile: true
-num_workers: 8
+compile: false      # torch.compile không chạy trên Windows (Triton missing)
+num_workers: 4
+persistent_workers: true
 freeze_blocks: 8    # đóng băng 8/12 ViT blocks → ~60% ít backward hơn
 
 loss:

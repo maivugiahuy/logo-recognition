@@ -30,10 +30,11 @@ training:
   k: 24             # classes per batch
   m: 4              # images per class
 
-amp: true           # mixed precision (bfloat16/float16)
-compile: true       # torch.compile (~10-20% speedup)
-num_workers: 8
-freeze_blocks: 8    # đóng băng 8/12 ViT blocks → ~60% ít backward hơn; đổi ~1% accuracy
+amp: true           # mixed precision (bfloat16) — ~2x faster
+compile: false      # torch.compile không chạy trên Windows (Triton missing)
+num_workers: 4      # Windows multiprocessing overhead — 4 tốt hơn 8
+persistent_workers: true  # giữ worker process sống giữa các epoch → bỏ overhead spawn
+freeze_blocks: 8    # đóng băng 8/12 ViT blocks → ~60% ít backward hơn
 
 loss:
   sigma: 0.06

@@ -89,11 +89,16 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
     else:
         sampler = MPerClassSampler(train_ds.labels, k=k, m=m)
 
-    n_workers = cfg.get("num_workers", 8)
+    n_workers = cfg.get("num_workers", 4)
+    persistent = cfg.get("persistent_workers", True) and n_workers > 0
     train_loader = DataLoader(
-        train_ds, batch_sampler=sampler, num_workers=n_workers, pin_memory=True
+        train_ds, batch_sampler=sampler, num_workers=n_workers,
+        pin_memory=True, persistent_workers=persistent,
     )
-    val_loader = DataLoader(val_ds, batch_size=256, shuffle=False, num_workers=n_workers)
+    val_loader = DataLoader(
+        val_ds, batch_size=256, shuffle=False, num_workers=n_workers,
+        pin_memory=True, persistent_workers=persistent,
+    )
 
     # ── Model ─────────────────────────────────────────────────────────────
     # FIX: freeze_blocks=0 để fine-tune toàn bộ 12 transformer blocks đúng paper.
