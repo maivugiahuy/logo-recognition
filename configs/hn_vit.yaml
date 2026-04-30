@@ -23,14 +23,17 @@ scheduler:
   patience: 2
   factor: 0.25
 
+early_stopping_patience: 6  # dừng hẳn nếu không cải thiện sau 6 epochs
+
 training:
-  epochs: 25        # keep full 25 for HN phase — more important
+  epochs: 18        # 25→18; freeze_blocks=8 hội tụ nhanh hơn
   k: 24
   m: 4
 
 amp: true
 compile: true
 num_workers: 8
+freeze_blocks: 8    # đóng băng 8/12 ViT blocks → ~60% ít backward hơn
 
 loss:
   sigma: 0.06

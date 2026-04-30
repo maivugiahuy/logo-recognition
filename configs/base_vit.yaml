@@ -19,11 +19,13 @@ optimizer:
   proxy_eps: 1.0
 
 scheduler:
-  patience: 2       # reduced from 4; stops ~2 epochs earlier
+  patience: 2       # giảm LR nếu không cải thiện sau 2 epochs
   factor: 0.25
 
+early_stopping_patience: 6  # dừng hẳn nếu không cải thiện sau 6 epochs
+
 training:
-  epochs: 15        # reduced from 25; plateau scheduler stops early anyway
+  epochs: 10        # 15→10; plateau scheduler stops sớm hơn với freeze_blocks=8
   batch_size: 192   # k=24, m=4 (MPerClassSampler)
   k: 24             # classes per batch
   m: 4              # images per class
@@ -31,6 +33,7 @@ training:
 amp: true           # mixed precision (bfloat16/float16)
 compile: true       # torch.compile (~10-20% speedup)
 num_workers: 8
+freeze_blocks: 8    # đóng băng 8/12 ViT blocks → ~60% ít backward hơn; đổi ~1% accuracy
 
 loss:
   sigma: 0.06

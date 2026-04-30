@@ -56,6 +56,13 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
         cfg = yaml.safe_load(f)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # TF32 — miễn phí ~10% speedup trên Ampere/Ada (RTX 30xx/40xx).
+    # Không ảnh hưởng accuracy vì loss/eval vẫn dùng bfloat16/float32.
+    if device.type == "cuda":
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
     mode = cfg.get("mode", "open_set")
     split_prefix = "open" if mode == "open_set" else "closed"
 
@@ -87,7 +94,12 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
     val_loader = DataLoader(val_ds, batch_size=256, shuffle=False, num_workers=n_workers)
 
     # ── Model ─────────────────────────────────────────────────────────────
-    embedder = build_vit_embedder(cfg["embed_dim"], cfg["input_size"]).to(device)
+    # FIX: freeze_blocks=0 để fine-tune toàn bộ 12 transformer blocks đúng paper.
+    # freeze_blocks=8 (default cũ) là speedup không có trong paper → accuracy thấp hơn.
+    freeze_blocks = cfg.get("freeze_blocks", 0)
+    embedder = build_vit_embedder(
+        cfg["embed_dim"], cfg["input_size"], freeze_blocks=freeze_blocks
+    ).to(device)
 
     if "init_from" in cfg and Path(cfg["init_from"]).exists():
         state = torch.load(cfg["init_from"], map_location=device)
@@ -95,7 +107,7 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
         print(f"Loaded weights from {cfg['init_from']}")
 
     proxy_head = ProxyHead(train_ds.num_classes, cfg["embed_dim"]).to(device)
-    # BUG FIX: proxy init phải dùng toàn bộ training data (paper Sec 4.2),
+    # FIX: proxy init phải dùng toàn bộ training data (paper Sec 4.2),
     # không phải train_loader có batch_sampler (chỉ lấy ~m ảnh/class).
     init_loader = DataLoader(
         train_ds, batch_size=256, shuffle=False,
@@ -103,12 +115,6 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
     )
     proxy_head.init_from_embeddings(embedder, init_loader, device)
     embedder.train()
-
-    # torch.compile — free ~10-20% on Ampere/Ada GPUs (skip on CPU)
-    use_compile = device.type == "cuda" and cfg.get("compile", True)
-    if use_compile:
-        embedder = torch.compile(embedder)
-        print("torch.compile enabled")
 
     # ── Loss ──────────────────────────────────────────────────────────────
     sigma = cfg["loss"]["sigma"]
@@ -118,7 +124,16 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
         criterion = ProxyNCAPPLoss(sigma=sigma)
 
     # ── Optimizer ─────────────────────────────────────────────────────────
+    # FIX: build_optimizer TRƯỚC torch.compile để tránh id(param) không ổn định
+    # khi OptimizedModule wrap model gốc.
     optimizer = build_optimizer(embedder, proxy_head, cfg)
+
+    # torch.compile — free ~10-20% on Ampere/Ada GPUs (skip on CPU)
+    # Đặt SAU optimizer để param groups đã được gắn vào đúng tensor objects.
+    use_compile = device.type == "cuda" and cfg.get("compile", True)
+    if use_compile:
+        embedder = torch.compile(embedder)
+        print("torch.compile enabled")
     scheduler = ReduceLROnPlateau(
         optimizer,
         patience=cfg["scheduler"]["patience"],
@@ -131,6 +146,11 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
     use_amp = device.type == "cuda" and cfg.get("amp", True)
     scaler = GradScaler(enabled=use_amp)
     print(f"AMP: {'enabled (' + str(amp_dtype) + ')' if use_amp else 'disabled'}")
+
+    # Early stopping — dừng khi val recall không cải thiện sau `es_patience` epochs
+    es_patience = cfg.get("early_stopping_patience", 6)
+    epochs_no_improve = 0
+    print(f"Early stopping patience: {es_patience} epochs")
 
     # ── Training loop ─────────────────────────────────────────────────────
     best_recall = 0.0
@@ -160,11 +180,18 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
 
         if val_recall > best_recall:
             best_recall = val_recall
+            epochs_no_improve = 0
             CKPT.mkdir(exist_ok=True)
             torch.save(
                 {"embedder": embedder.state_dict(), "proxy": proxy_head.state_dict()},
                 CKPT / ckpt_name,
             )
             print(f"  → saved {ckpt_name} (recall@1={best_recall:.4f})")
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= es_patience:
+                print(f"\nEarly stopping tại epoch {epoch+1} "
+                      f"(không cải thiện sau {es_patience} epochs)")
+                break
 
     print(f"\nBest val recall@1: {best_recall:.4f}")
