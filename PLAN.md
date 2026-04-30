@@ -134,7 +134,7 @@ python scripts/02_train_base.py --config configs/base_vit.yaml
 
 ### Step 6 — Hard-negative mining (~30 min)
 ```bash
-python scripts/03_mine_hn.py --ckpt checkpoints/vit_base.pt
+python scripts/03_mine_hn.py --ckpt checkpoints/vit_base.pt --config configs/base_vit.yaml
 ```
 - h(yi) = {yj : 0.05 ≤ C[i,j] ≤ 0.35 AND levenshtein(name_i, name_j) > 2}
 - Output: `data/processed/hn_map.json`
