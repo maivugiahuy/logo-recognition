@@ -227,6 +227,24 @@ Pipeline: YOLOv8 detect → crop 160×160 → ViT embed → FAISS top-1 → bran
 - Box **đỏ** = brand nhận dạng được (score ≥ threshold)
 - Box **cam** = unknown (score < threshold)
 
+### Step 11b — Xem danh sách classes
+```bash
+# Toàn bộ classes trong dataset → classes.txt (1 class/line)
+python scripts/list_classes.py
+
+# Kèm stats (số ảnh, số objects) → classes.csv
+python scripts/list_classes.py --format csv --out classes.csv
+
+# Classes đang có trong gallery
+python scripts/list_classes.py --source gallery
+
+# Xuất từng split riêng vào folder
+python scripts/list_classes.py --source splits
+# → data/processed/logodet3k/splits_export/open_train.txt
+# → data/processed/logodet3k/splits_export/closed_test.txt
+# → data/processed/logodet3k/splits_export/summary.txt
+```
+
 ### Step 12 — Thêm brand mới vào gallery (không cần train lại)
 ```bash
 # Ảnh đã crop sẵn logo (thêm 1 brand)
