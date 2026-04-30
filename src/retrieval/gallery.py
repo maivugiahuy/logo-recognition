@@ -105,3 +105,129 @@ def load_gallery(dataset_name: str) -> tuple[faiss.Index, list[str]]:
     with open(GALLERY_DIR / f"{dataset_name}_labels.json") as f:
         labels = json.load(f)
     return index, labels
+
+
+def check_duplicate(brand_name: str, dataset_name: str = "logodet3k") -> int:
+    """
+    Kiểm tra brand đã tồn tại trong gallery chưa.
+    Trả về số lượng ảnh hiện có (0 = chưa có).
+    """
+    labels_path = GALLERY_DIR / f"{dataset_name}_labels.json"
+    if not labels_path.exists():
+        return 0
+    with open(labels_path) as f:
+        labels = json.load(f)
+    return labels.count(brand_name)
+
+
+def remove_from_gallery(brand_name: str, dataset_name: str = "logodet3k") -> int:
+    """
+    Xóa toàn bộ vectors của brand khỏi gallery.
+    Trả về số vectors đã xóa.
+    FAISS IndexFlatIP không hỗ trợ xóa trực tiếp → rebuild index không có brand đó.
+    """
+    index, labels = load_gallery(dataset_name)
+
+    keep_indices = [i for i, l in enumerate(labels) if l != brand_name]
+    n_removed = len(labels) - len(keep_indices)
+
+    if n_removed == 0:
+        print(f"Brand '{brand_name}' không có trong gallery.")
+        return 0
+
+    # Lấy embeddings của các entry cần giữ
+    all_embs = np.zeros((index.ntotal, index.d), dtype="float32")
+    index.reconstruct_n(0, index.ntotal, all_embs)
+    kept_embs = all_embs[keep_indices]
+
+    # Rebuild index
+    new_index = faiss.IndexFlatIP(index.d)
+    if len(kept_embs) > 0:
+        new_index.add(kept_embs)
+    new_labels = [labels[i] for i in keep_indices]
+
+    faiss.write_index(new_index, str(GALLERY_DIR / f"{dataset_name}.faiss"))
+    with open(GALLERY_DIR / f"{dataset_name}_labels.json", "w") as f:
+        json.dump(new_labels, f)
+
+    print(f"Đã xóa brand '{brand_name}' ({n_removed} vectors) khỏi gallery '{dataset_name}'")
+    print(f"Gallery còn lại: {new_index.ntotal} vectors")
+    return n_removed
+
+
+def add_to_gallery(
+    image_paths: list[str | Path],
+    brand_name: str,
+    dataset_name: str = "logodet3k",
+    ckpt_path: str | Path = CKPT,
+    embed_dim: int = 128,
+    input_size: int = 160,
+    crop_box: tuple | None = None,
+    on_duplicate: str = "append",  # "append" | "replace" | "skip"
+) -> None:
+    """
+    Thêm brand vào gallery hiện có mà không cần build lại từ đầu.
+
+    Args:
+        image_paths:  danh sách ảnh chứa logo của brand
+        brand_name:   tên brand (label sẽ dùng khi retrieve)
+        dataset_name: gallery cần update
+        crop_box:     (x1, y1, x2, y2) nếu muốn crop logo từ ảnh, None = dùng toàn ảnh
+        on_duplicate: xử lý khi brand đã tồn tại:
+                        "append"  — thêm ảnh mới vào bên cạnh ảnh cũ (mặc định)
+                        "replace" — xóa ảnh cũ, thêm ảnh mới
+                        "skip"    — bỏ qua, không làm gì
+    """
+    # ── Kiểm tra trùng ────────────────────────────────────────────────────
+    existing_count = check_duplicate(brand_name, dataset_name)
+    if existing_count > 0:
+        if on_duplicate == "skip":
+            print(f"  [SKIP] Brand '{brand_name}' đã có {existing_count} ảnh trong gallery.")
+            return
+        elif on_duplicate == "replace":
+            print(f"  [REPLACE] Brand '{brand_name}' đã có {existing_count} ảnh → xóa và thêm lại.")
+            remove_from_gallery(brand_name, dataset_name)
+        else:  # append
+            print(f"  [APPEND] Brand '{brand_name}' đã có {existing_count} ảnh → thêm ảnh mới vào.")
+
+    # ── Embed ảnh mới ─────────────────────────────────────────────────────
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
+    state = torch.load(ckpt_path, map_location=device)
+    embedder.load_state_dict(state["embedder"])
+    embedder.eval()
+
+    transform = val_transforms(input_size)
+    new_embs = []
+
+    for img_path in image_paths:
+        try:
+            img = Image.open(img_path).convert("RGB")
+            if crop_box is not None:
+                x1, y1, x2, y2 = crop_box
+                img = img.crop((max(0, x1), max(0, y1),
+                                min(img.width, x2), min(img.height, y2)))
+            tensor = transform(img).unsqueeze(0).to(device)
+            with torch.no_grad():
+                emb = embedder(tensor).cpu().numpy()  # (1, D)
+            new_embs.append(emb)
+        except Exception as e:
+            print(f"  [WARN] Bỏ qua {img_path}: {e}")
+
+    if not new_embs:
+        print("Không có ảnh hợp lệ, bỏ qua.")
+        return
+
+    new_embs = np.concatenate(new_embs).astype("float32")  # (N, D)
+
+    # ── Thêm vào gallery ──────────────────────────────────────────────────
+    index, labels = load_gallery(dataset_name)
+    index.add(new_embs)
+    labels.extend([brand_name] * len(new_embs))
+
+    faiss.write_index(index, str(GALLERY_DIR / f"{dataset_name}.faiss"))
+    with open(GALLERY_DIR / f"{dataset_name}_labels.json", "w") as f:
+        json.dump(labels, f)
+
+    print(f"Đã thêm brand '{brand_name}' ({len(new_embs)} ảnh) → gallery '{dataset_name}'")
+    print(f"Gallery mới: {index.ntotal} vectors total")
