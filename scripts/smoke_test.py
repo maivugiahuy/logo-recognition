@@ -133,19 +133,14 @@ def main():
                 lbls.extend(labels.tolist())
         return np.concatenate(embs), lbls
 
-    # Use shared class space: only evaluate classes in both splits
-    val_ds2 = OLG3K47Dataset.from_split(
-        ANN, smoke_val, transform=val_transforms(INPUT_SIZE), mode="open_set"
-    ) if val_ds.num_classes > 0 else None
-
-    if val_ds2 and val_ds2.num_classes > 0:
+    if val_ds.num_classes > 0:
         # Build gallery from train embeddings
         g_embs, g_lbls = embed_all(DataLoader(train_ds, batch_size=64, shuffle=False, num_workers=0))
-        q_embs, q_lbls = embed_all(DataLoader(val_ds2, batch_size=64, shuffle=False, num_workers=0))
+        q_embs, q_lbls = embed_all(DataLoader(val_ds, batch_size=64, shuffle=False, num_workers=0))
 
         # Map to class names
         idx2cls_train = {v: k for k, v in train_ds.class_to_idx.items()}
-        idx2cls_val = {v: k for k, v in val_ds2.class_to_idx.items()}
+        idx2cls_val = {v: k for k, v in val_ds.class_to_idx.items()}
         g_names = [idx2cls_train[l] for l in g_lbls]
         q_names = [idx2cls_val[l] for l in q_lbls]
 
@@ -157,7 +152,7 @@ def main():
         status = "OK" if recall > 0.5 else "WARN (< 0.5 — open-set is hard; may still be fine)"
         print(f"Smoke recall@1 (val): {recall:.4f}  [{status}]")
     else:
-        print("Smoke recall: skipped (val split empty or no shared classes)")
+        print("Smoke recall: skipped (val split empty)")
 
     print("\nSmoke test complete.")
 
