@@ -24,6 +24,7 @@ def build_confusion_matrix(
     embed_dim: int = 128,
     input_size: int = 160,
     batch_size: int = 256,
+    freeze_blocks: int = 0,
 ) -> tuple[np.ndarray, list[str]]:
     """
     Returns:
@@ -49,7 +50,7 @@ def build_confusion_matrix(
         f"but split has {len(class_names)} classes"
     )
 
-    embedder = build_vit_embedder(embed_dim, input_size).to(device)
+    embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=freeze_blocks).to(device)
     embedder.load_state_dict(state["embedder"])
 
     proxy_head = ProxyHead(num_classes, embed_dim).to(device)
