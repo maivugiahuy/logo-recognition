@@ -31,14 +31,14 @@ class ProxyHead(nn.Module):
                 embs = embedder(imgs)  # (B, D), L2 normalized
                 for emb, lbl in zip(embs, labels.tolist()):
                     if lbl not in class_sums:
-                        class_sums[lbl] = torch.zeros_like(emb)
+                        class_sums[lbl] = torch.zeros_like(emb)  # on GPU
                         class_counts[lbl] = 0
-                    class_sums[lbl] += emb.cpu()
+                    class_sums[lbl] += emb  # GPU + GPU
                     class_counts[lbl] += 1
 
         with torch.no_grad():
             for lbl, total in class_sums.items():
                 mean_emb = total / class_counts[lbl]
-                self.proxies.data[lbl] = F.normalize(mean_emb, dim=-1)
+                self.proxies.data[lbl] = F.normalize(mean_emb, dim=-1).cpu()
 
         print(f"Proxies initialized for {len(class_sums)} classes.")
