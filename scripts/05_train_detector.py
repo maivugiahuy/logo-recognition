@@ -13,12 +13,14 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="configs/detector_yolov8.yaml")
     args = parser.parse_args()
 
+    best_weights = "checkpoints/yolov8_logo/weights/best.pt"
+
     if not args.eval_only:
         if not args.skip_prepare:
             print("=== Preparing YOLO dataset ===")
             prepare_yolo_dataset()
         print("=== Training YOLOv8m ===")
-        train_detector(args.config)
+        best_weights = train_detector(args.config)
 
     print("=== Evaluating AP@0.5 ===")
-    evaluate_ap("checkpoints/yolov8_logo/weights/best.pt")
+    evaluate_ap(best_weights)

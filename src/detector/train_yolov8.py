@@ -25,9 +25,11 @@ def train_detector(cfg_path: str = "configs/detector_yolov8.yaml") -> None:
         patience=cfg.get("patience", 10),
         save_period=cfg.get("save_period", 10),
     )
+    # Lấy path thực từ results.save_dir (ultralytics mới có thể prepend runs/detect/)
+    best_weights = Path(results.save_dir) / "weights" / "best.pt"
     print("Detector training done.")
-    print(f"Best weights: {Path(cfg['project']) / cfg['name'] / 'weights/best.pt'}")
-    return results
+    print(f"Best weights: {best_weights}")
+    return best_weights
 
 
 if __name__ == "__main__":
