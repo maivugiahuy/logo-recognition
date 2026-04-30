@@ -26,15 +26,15 @@ scheduler:
 early_stopping_patience: 6  # dừng hẳn nếu không cải thiện sau 6 epochs
 
 training:
-  epochs: 18        # 25→18; freeze_blocks=8 hội tụ nhanh hơn
-  k: 24
-  m: 4
+  epochs: 25
+  k: 48
+  m: 8
 
 amp: true
 compile: false      # torch.compile không chạy trên Windows (Triton missing)
-num_workers: 4
+num_workers: 8
 persistent_workers: true
-freeze_blocks: 8    # đóng băng 8/12 ViT blocks → ~60% ít backward hơn
+freeze_blocks: 4
 
 loss:
   sigma: 0.06

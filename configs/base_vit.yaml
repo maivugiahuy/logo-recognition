@@ -25,16 +25,16 @@ scheduler:
 early_stopping_patience: 6  # dừng hẳn nếu không cải thiện sau 6 epochs
 
 training:
-  epochs: 10        # 15→10; plateau scheduler stops sớm hơn với freeze_blocks=8
-  batch_size: 192   # k=24, m=4 (MPerClassSampler)
-  k: 24             # classes per batch
-  m: 4              # images per class
+  epochs: 15
+  batch_size: 384   # k=48, m=8 (tăng từ 192 → 384, dùng thêm ~4GB VRAM)
+  k: 48             # classes per batch
+  m: 8              # images per class
 
-amp: true           # mixed precision (bfloat16) — ~2x faster
+amp: true
 compile: false      # torch.compile không chạy trên Windows (Triton missing)
-num_workers: 4      # Windows multiprocessing overhead — 4 tốt hơn 8
-persistent_workers: true  # giữ worker process sống giữa các epoch → bỏ overhead spawn
-freeze_blocks: 8    # đóng băng 8/12 ViT blocks → ~60% ít backward hơn
+num_workers: 8      # tăng từ 4 → 8: feed GPU nhanh hơn
+persistent_workers: true
+freeze_blocks: 4    # unfreeze thêm (8→4): train nhiều layer hơn → accuracy tốt hơn
 
 loss:
   sigma: 0.06

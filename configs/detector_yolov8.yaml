@@ -3,7 +3,7 @@ model: yolov8m.pt
 data: data/processed/detector_yolo/dataset.yaml
 imgsz: 512
 epochs: 30          # giảm từ 50 → 30: đủ hội tụ với dataset này
-batch: 32           # tăng từ 16 → 32: tận dụng VRAM còn trống, ít steps/epoch hơn
+batch: 64           # RTX 5060 Ti 16GB: 512px × batch64 dùng ~12–13GB VRAM
 device: 0
 project: checkpoints
 name: yolov8_logo
