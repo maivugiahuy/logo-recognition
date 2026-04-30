@@ -20,7 +20,7 @@ from src.detector.detect import LogoDetector
 from src.models.embedder_vit import build_vit_embedder
 from src.retrieval.gallery import load_gallery
 
-DEFAULT_DETECTOR = "checkpoints/yolov8_logo/weights/best.pt"
+DEFAULT_DETECTOR = "runs/detect/checkpoints/yolov8_logo/weights/best.pt"
 DEFAULT_EMBEDDER = "checkpoints/vit_hn.pt"
 DEFAULT_GALLERY = "logodet3k"
 
@@ -42,7 +42,7 @@ class LogoRecognitionPipeline:
 
         self.detector = LogoDetector(weights=detector_weights, conf=conf)
 
-        embedder = build_vit_embedder(embed_dim, input_size).to(self.device)
+        embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(self.device)
         state = torch.load(embedder_ckpt, map_location=self.device)
         embedder.load_state_dict(state["embedder"])
         embedder.eval()
