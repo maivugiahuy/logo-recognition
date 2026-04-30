@@ -104,18 +104,18 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 | Dataset | Size | Download | Destination |
 |---|---|---|---|
-| LogoDet3K | ~3 GB | [GitHub](https://github.com/Wangjing1551/LogoDet-3K-Dataset) → Releases | `data/raw/logodet3k/` |
+| LogoDet3K | ~3 GB | [GitHub](https://www.kaggle.com/datasets/lyly99/logodet3kt) → Releases | `data/raw/logodet3k/` |
 | QMUL-OpenLogo | ~2 GB | [qmul-openlogo.github.io](https://qmul-openlogo.github.io/) | `data/raw/openlogo/` |
-| FlickrLogos-47 | ~150 MB | [multimedia-computing.de](http://www.multimedia-computing.de/flickrlogos/) | `data/raw/flickr47/` |
+| FlickrLogos-47 | ~150 MB | [multimedia-computing.de](https://www.kaggle.com/datasets/samikshakolhe/flicker-47-logo-images-dataset) | `data/raw/flickr47/` |
 | BelgaLogos | ~70 MB | [INRIA page](http://www-sop.inria.fr/members/Alexis.Joly/BelgaLogos/BelgaLogos.html) | `data/raw/belga/` |
-| LogosInTheWild | ~1 GB | [Fraunhofer IOSB](https://www.iosb.fraunhofer.de/en/competences/image-exploitation/object-recognition/scene-analysis/logos-in-the-wild.html) (request form) | `data/raw/litw/` |
+| LogosInTheWild | ~1 GB | [Fraunhofer IOSB](https://zenodo.org/records/5101018) | `data/raw/litw/` |
 
 > **Lưu ý:**
 > - **LogoDet3K**: giải nén rồi đặt các class folder vào `data/raw/logodet3k/`. Mỗi folder là 1 class, chứa ảnh + annotation JSON.
 > - **QMUL-OpenLogo**: giải nén, cấu trúc là `images/` + `annotations/` (VOC XML). Đặt cả 2 vào `data/raw/openlogo/`.
 > - **FlickrLogos-47**: giải nén, mỗi class là 1 folder chứa ảnh `.jpg` + annotation `.txt`. Đặt vào `data/raw/flickr47/`.
 > - **BelgaLogos**: ảnh + annotation CSV/XML. Đặt vào `data/raw/belga/` (chỉ dùng để eval, không train).
-> - **LogosInTheWild**: cần điền form xin truy cập, thường được trả lời trong 1–2 ngày. Đặt vào `data/raw/litw/` (chỉ dùng để eval).
+> - **LogosInTheWild**: ảnh + annotation CSV/XML. Đặt vào `data/raw/litw/` (chỉ dùng để eval).
 
 ### Step 3 — Build OpenLogoDet3K47
 ```bash
