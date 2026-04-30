@@ -2,12 +2,14 @@
 model: yolov8m.pt
 data: data/processed/detector_yolo/dataset.yaml
 imgsz: 512
-epochs: 50
-batch: 16
+epochs: 30          # giảm từ 50 → 30: đủ hội tụ với dataset này
+batch: 32           # tăng từ 16 → 32: tận dụng VRAM còn trống, ít steps/epoch hơn
 device: 0
 project: checkpoints
 name: yolov8_logo
 exist_ok: true
-patience: 10
+patience: 7         # giảm từ 10 → 7: early stopping sớm hơn nếu không cải thiện
 save_period: 10
+workers: 4          # số dataloader workers
+cache: ram          # cache ảnh vào RAM: loại bỏ disk I/O bottleneck từ epoch 2 trở đi
 conf_thresholds: [0.4, 0.1, 0.01]
