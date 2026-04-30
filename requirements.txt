@@ -9,9 +9,6 @@ open_clip_torch>=2.26.1
 ultralytics>=8.2.0
 
 # Approximate nearest neighbor
-# BUG FIX: faiss-gpu không có trên PyPI cho Windows → dùng faiss-cpu
-# Linux CUDA12: thay bằng  pip install faiss-gpu-cu12
-#               hoặc       conda install -c pytorch -c nvidia faiss-gpu
 faiss-cpu>=1.8.0
 
 # Data / IO

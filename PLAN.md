@@ -40,12 +40,13 @@ nvidia-smi
 If `nvidia-smi` not found → install NVIDIA driver first (step 0.2).
 
 #### 0.2 — Install NVIDIA driver + CUDA Toolkit
-1. Download driver: https://www.nvidia.com/Download/index.aspx (pick your GPU, Windows 11)
-2. Download CUDA 12.1 Toolkit: https://developer.nvidia.com/cuda-12-1-0-download-archive
+RTX 5060 Ti (Blackwell) yêu cầu CUDA 12.8+.
+1. Download driver: https://www.nvidia.com/Download/index.aspx (chọn RTX 5060 Ti, Windows 11)
+2. Download CUDA 12.8 Toolkit: https://developer.nvidia.com/cuda-12-8-0-download-archive
    - Select: Windows → x86_64 → 11 → exe (local)
    - Install with default options
 3. Reboot
-4. Verify: `nvidia-smi` shows GPU + CUDA version
+4. Verify: `nvidia-smi` shows GPU + CUDA 12.8
 
 #### 0.3 — Install Git
 Download: https://git-scm.com/download/win → install with defaults.
@@ -74,12 +75,13 @@ python -m venv .venv
 python -m pip install --upgrade pip
 ```
 
-#### 0.7 — Install PyTorch (CUDA 12.1)
+#### 0.7 — Install PyTorch (CUDA 12.8)
+RTX 5060 cần PyTorch nightly vì stable chưa có wheel cu128 chính thức:
 ```cmd
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-python -c "import torch; print(torch.cuda.is_available())"
+pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
+python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
 ```
-Must print `True`. If `False` → CUDA driver mismatch, reinstall CUDA Toolkit.
+Must print `True 12.8`. If `False` → CUDA driver mismatch, reinstall CUDA Toolkit.
 
 #### 0.8 — Install project dependencies
 ```cmd
@@ -102,16 +104,26 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 ### Step 2 — Download datasets (manual)
 
+**Dùng để train + build:**
+
 | Dataset | Size | Download | Destination |
 |---|---|---|---|
 | LogoDet-3K | ~3 GB | [Kaggle](https://www.kaggle.com/datasets/lyly99/logodet3k) | `data/raw/LogoDet-3K/` |
 | QMUL-OpenLogo | ~2 GB | [qmul-openlogo.github.io](https://qmul-openlogo.github.io/) | `data/raw/openlogo/` |
 | FlickrLogos-47 | ~150 MB | [Kaggle](https://www.kaggle.com/datasets/samikshakolhe/flicker-47-logo-images-dataset) | `data/raw/FlickrLogos_47/` |
 
+**Dùng để eval only (Step 10):**
+
+| Dataset | Size | Download | Destination |
+|---|---|---|---|
+| BelgaLogos | ~70 MB | [INRIA](http://www-sop.inria.fr/members/Alexis.Joly/BelgaLogos/BelgaLogos.html) | `data/raw/belga/` |
+| LogosInTheWild | ~1 GB | [Zenodo](https://zenodo.org/records/5101018) | `data/raw/litw/` |
+
 > **Lưu ý:**
 > - **LogoDet-3K**: giải nén, đặt vào `data/raw/LogoDet-3K/`. Cấu trúc: `LogoDet-3K/{category}/{ClassName}/{id}.jpg` + `{id}.xml`
 > - **QMUL-OpenLogo**: giải nén, đặt vào `data/raw/openlogo/`. Cấu trúc: `openlogo/Annotations/*.xml` + `openlogo/JPEGImages/*.jpg`
 > - **FlickrLogos-47**: giải nén, đặt vào `data/raw/FlickrLogos_47/`. Cấu trúc: `FlickrLogos_47/train/{classID:06d}/*.png` + `*.gt_data.txt`
+> - **BelgaLogos** và **LogosInTheWild**: chỉ cần khi chạy `07_eval.py` để so sánh với paper Table 2. Có thể bỏ qua nếu chỉ muốn train và test trên 3 dataset chính.
 
 ### Step 3 — Build OpenLogoDet3K47
 ```bash
@@ -176,7 +188,7 @@ python scripts/08_demo.py your_image.jpg --save_dir results/
 ```
 Pipeline: YOLOv8 detect → crop 160×160 → ViT embed → FAISS top-1 → brand label
 
-## Compute budget (1× RTX 4090)
+## Compute budget (1× RTX 5060 Ti 16 GB)
 
 | Phase | Time |
 |---|---|
