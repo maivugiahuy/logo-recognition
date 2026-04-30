@@ -67,7 +67,7 @@ def build_gallery(
       data/galleries/{dataset_name}_labels.json  — [class_name per index]
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    embedder = build_vit_embedder(embed_dim, input_size).to(device)
+    embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
     state = torch.load(ckpt_path, map_location=device)
     embedder.load_state_dict(state["embedder"])
     embedder.eval()

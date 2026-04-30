@@ -24,13 +24,29 @@ EVAL_CONFIGS = {
 
 
 def _ensure_logodet3k_parquet() -> Path:
-    """Tạo logodet3k_test.parquet từ annotations chính nếu chưa có."""
+    """Tạo logodet3k_test.parquet từ annotations chính nếu chưa có.
+    Chỉ lấy ảnh thuộc closed_test split để eval đúng."""
+    import json
     per_ds = ANN_BASE / "logodet3k_test.parquet"
     if per_ds.exists():
         return per_ds
     main = ANN_BASE / "logodet3k/annotations.parquet"
+    closed_test_json = ANN_BASE / "logodet3k/splits/closed_test.json"
     df = pd.read_parquet(main)
-    df = df[df["source"] == "logodet3k"]
+    if closed_test_json.exists():
+        with open(closed_test_json) as f:
+            closed_test = json.load(f)  # {class_name: [image_paths]}
+        keep_rows = []
+        for cls, imgs in closed_test.items():
+            img_set = set(imgs)
+            rows = df[(df["class_name"] == cls) & (df["image_path"].isin(img_set))]
+            keep_rows.append(rows)
+        df = pd.concat(keep_rows, ignore_index=True) if keep_rows else df.iloc[:0]
+        print(f"  Filtered to closed_test: {df['class_name'].nunique()} classes, {len(df)} objects")
+    else:
+        # Fallback: dùng toàn bộ nếu không tìm thấy split file
+        print("  [WARN] closed_test.json not found, using all logodet3k data")
+        df = df[df["source"] == "logodet3k"]
     per_ds.parent.mkdir(exist_ok=True)
     df.to_parquet(per_ds, index=False)
     return per_ds

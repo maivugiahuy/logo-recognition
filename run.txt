@@ -1,7 +1,0 @@
-python -c "
-import pandas as pd
-df = pd.read_parquet('data/processed/logodet3k/annotations.parquet')
-per_class = df.groupby('class_name')['image_path'].nunique()
-print(per_class.describe())
-print('median:', per_class.median())
-"

@@ -32,21 +32,24 @@ class OLG3K47Dataset(Dataset):
         mode='closed_set': split_json is {class: [image_paths]} dict.
         """
         df = pd.read_parquet(ann_path)
-        with open(split_json) as f:
-            split_data = json.load(f)
 
-        if mode == "open_set":
-            classes = split_data
-            mask = df["class_name"].isin(classes)
-            df = df[mask]
-        else:
-            # closed_set: {class_name: [image_paths]}
-            keep_rows = []
-            for class_name, imgs in split_data.items():
-                img_set = set(imgs)
-                rows = df[(df["class_name"] == class_name) & (df["image_path"].isin(img_set))]
-                keep_rows.append(rows)
-            df = pd.concat(keep_rows, ignore_index=True) if keep_rows else df.iloc[:0]
+        if split_json is not None:
+            with open(split_json) as f:
+                split_data = json.load(f)
+
+            if mode == "open_set":
+                classes = split_data
+                mask = df["class_name"].isin(classes)
+                df = df[mask]
+            else:
+                # closed_set: {class_name: [image_paths]}
+                keep_rows = []
+                for class_name, imgs in split_data.items():
+                    img_set = set(imgs)
+                    rows = df[(df["class_name"] == class_name) & (df["image_path"].isin(img_set))]
+                    keep_rows.append(rows)
+                df = pd.concat(keep_rows, ignore_index=True) if keep_rows else df.iloc[:0]
+        # else: split_json=None → dùng toàn bộ parquet (parquet đã được lọc sẵn trước)
 
         all_classes = sorted(df["class_name"].unique().tolist())
         class_to_idx = {c: i for i, c in enumerate(all_classes)}
