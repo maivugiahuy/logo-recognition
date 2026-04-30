@@ -39,35 +39,8 @@ DATASET_URLS = {
         "info": "https://github.com/Wangjing1551/LogoDet-3K-Dataset",
         "notes": (
             "LogoDet-3K: Download from the GitHub page above. "
-            "Place extracted contents in data/raw/logodet3k/."
-        ),
-    },
-    "openlogo": {
-        "info": "https://qmul-openlogo.github.io/",
-        "notes": (
-            "QMUL-OpenLogo: Request access at the project page. "
-            "Place extracted contents in data/raw/openlogo/."
-        ),
-    },
-    "flickr47": {
-        "info": "https://www.multimedia-computing.de/flickrlogos/",
-        "notes": (
-            "FlickrLogos-47: Register at the URL above and download. "
-            "Place extracted contents in data/raw/flickr47/."
-        ),
-    },
-    "belga": {
-        "info": "http://www-sop.inria.fr/members/Alexis.Joly/BelgaLogos/BelgaLogos.html",
-        "notes": (
-            "BelgaLogos: Download from the URL above. "
-            "Place extracted contents in data/raw/belga/."
-        ),
-    },
-    "litw": {
-        "info": "https://liacs.leidenuniv.nl/~uijlingstjmh/LogosInTheWild/",
-        "notes": (
-            "LogosInTheWild: Fill form at URL above. "
-            "Place extracted contents in data/raw/litw/."
+            "Place extracted contents in data/raw/LogoDet-3K/ "
+            "(giữ nguyên cấu trúc thư mục: data/raw/LogoDet-3K/{category}/{ClassName}/)."
         ),
     },
 }
@@ -106,4 +79,4 @@ if __name__ == "__main__":
     if missing:
         print(f"\nMissing: {missing}. Download manually then re-run.")
     else:
-        print("\nAll datasets present.")
+        print("\nLogoDet-3K dataset present.")

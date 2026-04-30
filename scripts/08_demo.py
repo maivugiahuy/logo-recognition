@@ -1,7 +1,7 @@
 """
 Step 11: End-to-end demo — input image(s) → brand labels with bounding boxes.
 Usage: python scripts/08_demo.py path/to/image.jpg [path/to/image2.jpg ...]
-       python scripts/08_demo.py --gallery openlogo --conf 0.1
+       python scripts/08_demo.py --gallery logodet3k --conf 0.1
 """
 import argparse
 import sys

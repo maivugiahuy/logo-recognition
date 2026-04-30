@@ -1,14 +1,10 @@
 """
-Build OpenLogoDet3K47 composite dataset — paper Appendix B.
-Merges LogoDet3K + QMUL-OpenLogo + FlickrLogos-47.
-Output: data/processed/openlogodet3k47/annotations.parquet
-Target: ~2714 classes / 181,552 images / 227,176 objects
+Build LogoDet-3K dataset.
+Output: data/processed/logodet3k/annotations.parquet
+Target: ~3000 classes / ~158,652 images / ~194,261 objects
 
-Dataset paths (actual locations on disk):
+Dataset path:
   LogoDet-3K  : DATASET_ROOT/LogoDet-3K/{category}/{ClassName}/{id}.jpg + {id}.xml
-  OpenLogo    : DATASET_ROOT/openlogo/Annotations/{id}.xml + JPEGImages/{id}.jpg
-  FlickrLogos : DATASET_ROOT/FlickrLogos_47/train|test/{classID:06d}/{imageID}.png
-                  + {imageID}.gt_data.txt  (format: x1 y1 x2 y2 class_id ...)
 """
 import os
 import re
@@ -29,7 +25,7 @@ DATASET_ROOT = Path(os.environ.get(
     "data/raw"
 ))
 
-OUT = Path("data/processed/openlogodet3k47")
+OUT = Path("data/processed/logodet3k")
 ALIASES_PATH = Path("src/data/aliases.yaml")
 MIN_SIDE = 10
 MIN_INSTANCES = 20
@@ -103,123 +99,6 @@ def parse_logodet3k() -> list[dict]:
     return records
 
 
-def _parse_voc_xml(xml_path: Path, source: str, img_dir: Path | None = None) -> list[dict]:
-    """Parse Pascal VOC format XML annotation.
-
-    Args:
-        xml_path: path to the .xml annotation file
-        source:   dataset tag string (e.g. "logodet3k", "openlogo")
-        img_dir:  explicit directory that contains the image file.
-                  If None, the image is assumed to be in the same folder as
-                  the XML (LogoDet-3K layout).
-    """
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
-    fname = root.findtext("filename", "")
-    if img_dir is not None:
-        img_path = img_dir / fname
-    else:
-        img_path = xml_path.parent / fname
-    records = []
-    for obj in root.findall("object"):
-        name = obj.findtext("name", "unknown")
-        bnd = obj.find("bndbox")
-        if bnd is None:
-            continue
-        x1 = float(bnd.findtext("xmin", "0"))
-        y1 = float(bnd.findtext("ymin", "0"))
-        x2 = float(bnd.findtext("xmax", "0"))
-        y2 = float(bnd.findtext("ymax", "0"))
-        records.append({
-            "image_path": str(img_path),
-            "class_name": name,
-            "x1": x1, "y1": y1, "x2": x2, "y2": y2,
-            "source": source,
-        })
-    return records
-
-
-def parse_openlogo() -> list[dict]:
-    """QMUL-OpenLogo: VOC-style XML annotations.
-
-    Layout:
-      DATASET_ROOT/openlogo/Annotations/{id}.xml
-      DATASET_ROOT/openlogo/JPEGImages/{id}.jpg
-    """
-    root = DATASET_ROOT / "openlogo"
-    if not root.exists():
-        print(f"[WARN] OpenLogo not found at {root} — skipping")
-        return []
-    ann_dir = root / "Annotations"
-    img_dir = root / "JPEGImages"
-    records = []
-    for xml_path in tqdm(list(ann_dir.glob("*.xml")), desc="OpenLogo"):
-        records.extend(_parse_voc_xml(xml_path, "openlogo", img_dir=img_dir))
-    return records
-
-
-def parse_flickr47() -> list[dict]:
-    """FlickrLogos-47: numeric class folders + .gt_data.txt annotations.
-
-    Layout:
-      DATASET_ROOT/FlickrLogos_47/train/{classID:06d}/{imageID}.png
-      DATASET_ROOT/FlickrLogos_47/train/{classID:06d}/{imageID}.gt_data.txt
-      DATASET_ROOT/FlickrLogos_47/test/  (same structure)
-      DATASET_ROOT/FlickrLogos_47/className2ClassID.txt
-
-    gt_data.txt line format (per README):
-      <x1> <y1> <x2> <y2> <class_id> <dummy> <mask> <difficult> <truncated>
-      x1,y1 = upper-left corner; x2,y2 = lower-right corner (already absolute coords).
-    """
-    root = DATASET_ROOT / "FlickrLogos_47"
-    if not root.exists():
-        print(f"[WARN] FlickrLogos-47 not found at {root} — skipping")
-        return []
-
-    # Load class-ID → class-name mapping
-    mapping_file = root / "className2ClassID.txt"
-    id_to_name: dict[int, str] = {}
-    with open(mapping_file) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            parts = line.split("\t")
-            if len(parts) == 2:
-                name, cid = parts[0].strip(), int(parts[1].strip())
-                id_to_name[cid] = name
-
-    records = []
-    for split in ("train", "test"):
-        split_dir = root / split
-        if not split_dir.exists():
-            continue
-        # Collect numeric class folders (e.g. "000000", "000001", ...)
-        class_dirs = [d for d in split_dir.iterdir()
-                      if d.is_dir() and d.name.isdigit()]
-        for class_dir in tqdm(class_dirs, desc=f"FlickrLogos-47 {split}"):
-            class_id = int(class_dir.name)
-            class_name = id_to_name.get(class_id, class_dir.name)
-            for ann_file in class_dir.glob("*.gt_data.txt"):
-                # Image has same stem as the .gt_data.txt file
-                img_path = ann_file.parent / (ann_file.name.replace(".gt_data.txt", ".png"))
-                if not img_path.exists():
-                    continue
-                with open(ann_file) as f:
-                    for line in f:
-                        parts = line.strip().split()
-                        if len(parts) < 5:
-                            continue
-                        x1, y1, x2, y2 = map(float, parts[:4])
-                        records.append({
-                            "image_path": str(img_path),
-                            "class_name": class_name,
-                            "x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                            "source": "flickr47",
-                        })
-    return records
-
-
 # ── Main pipeline ───────────────────────────────────────────────────────────
 
 def filter_min_side(df: pd.DataFrame) -> pd.DataFrame:
@@ -275,7 +154,7 @@ def build() -> pd.DataFrame:
     aliases = load_aliases()
 
     print("Parsing sources...")
-    records = parse_logodet3k() + parse_openlogo() + parse_flickr47()
+    records = parse_logodet3k()
     df = pd.DataFrame(records)
     print(f"  raw objects: {len(df)}")
 

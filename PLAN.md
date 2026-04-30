@@ -17,6 +17,7 @@ Paper: *Image-Text Pre-Training for Logo Recognition* (Hubenthal & Kumar, Amazon
 | CLIP pretraining on 20M e-comm pairs | OpenAI pretrained ViT-B/32 weights | Table 3: OpenAI IT ≥ E-comm IT; 20M pairs unavailable |
 | YoloV4 on Amazon PL2K | YOLOv8m on LogoDet3K | PL2K is proprietary |
 | 4× V100 | 1× RTX 5060 Ti 16GB + AMP bfloat16 | Hardware |
+| OpenLogoDet3K47 composite (3 datasets) | LogoDet-3K only | Đơn giản hóa pipeline; chỉ cần 1 dataset |
 
 ## Speed optimizations applied
 
@@ -104,32 +105,18 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 ### Step 2 — Download datasets (manual)
 
-**Dùng để train + build:**
-
 | Dataset | Size | Download | Destination |
 |---|---|---|---|
 | LogoDet-3K | ~3 GB | [Kaggle](https://www.kaggle.com/datasets/lyly99/logodet3k) | `data/raw/LogoDet-3K/` |
-| QMUL-OpenLogo | ~2 GB | [qmul-openlogo.github.io](https://qmul-openlogo.github.io/) | `data/raw/openlogo/` |
-| FlickrLogos-47 | ~150 MB | [Kaggle](https://www.kaggle.com/datasets/samikshakolhe/flicker-47-logo-images-dataset) | `data/raw/FlickrLogos_47/` |
 
-**Dùng để eval only (Step 10):**
+> **Lưu ý:** Giải nén, đặt vào `data/raw/LogoDet-3K/`. Cấu trúc: `LogoDet-3K/{category}/{ClassName}/{id}.jpg` + `{id}.xml`
 
-| Dataset | Size | Download | Destination |
-|---|---|---|---|
-| BelgaLogos | ~70 MB | [INRIA](http://www-sop.inria.fr/members/Alexis.Joly/BelgaLogos/BelgaLogos.html) | `data/raw/belga/` |
-| LogosInTheWild | ~1 GB | [Zenodo](https://zenodo.org/records/5101018) | `data/raw/litw/` |
-
-> **Lưu ý:**
-> - **LogoDet-3K**: giải nén, đặt vào `data/raw/LogoDet-3K/`. Cấu trúc: `LogoDet-3K/{category}/{ClassName}/{id}.jpg` + `{id}.xml`
-> - **QMUL-OpenLogo**: giải nén, đặt vào `data/raw/openlogo/`. Cấu trúc: `openlogo/Annotations/*.xml` + `openlogo/JPEGImages/*.jpg`
-> - **FlickrLogos-47**: giải nén, đặt vào `data/raw/FlickrLogos_47/`. Cấu trúc: `FlickrLogos_47/train/{classID:06d}/*.png` + `*.gt_data.txt`
-> - **BelgaLogos** và **LogosInTheWild**: chỉ cần khi chạy `07_eval.py` để so sánh với paper Table 2. Có thể bỏ qua nếu chỉ muốn train và test trên 3 dataset chính.
-
-### Step 3 — Build OpenLogoDet3K47
+### Step 3 — Build LogoDet-3K dataset
 ```bash
 python scripts/01_build_dataset.py
 ```
-Target: **2714 classes / 181,552 images / 227,176 objects**
+Target: **~3000 classes / ~158,652 images / ~194,261 objects**
+Output: `data/processed/logodet3k/annotations.parquet` + `data/processed/logodet3k/splits/`
 
 ### Step 4 — Smoke test
 ```bash
@@ -166,11 +153,11 @@ python scripts/05_train_detector.py
 - YOLOv8m, class-agnostic, 512px, 50 epochs
 - Gate: AP@0.5 ≥ 0.70
 
-### Step 9 — Build galleries (1 h)
+### Step 9 — Build gallery (1 h)
 ```bash
 python scripts/06_build_galleries.py
 ```
-Output: `data/galleries/{dataset}.faiss` for all 5 datasets
+Output: `data/galleries/logodet3k.faiss`
 
 ### Step 10 — Evaluation
 ```bash
@@ -178,9 +165,8 @@ python scripts/07_eval.py
 ```
 | Dataset | Metric | Target |
 |---|---|---|
-| LogoDet3K | Q-vs-G recall@1 | ≥ 0.97 |
-| OpenLogo | Text recall@1 | ≥ 0.95 |
-| FlickrLogos-47 | All recall@1 | ≥ 0.97 |
+| LogoDet-3K | Q-vs-G recall@1 | ≥ 0.97 |
+| LogoDet-3K | All-vs-all recall@1 | ≥ 0.98 |
 
 ### Step 11 — Demo
 ```bash
@@ -192,7 +178,7 @@ Pipeline: YOLOv8 detect → crop 160×160 → ViT embed → FAISS top-1 → bran
 
 | Phase | Time |
 |---|---|
-| Build dataset | 1–2 h |
+| Build dataset (LogoDet-3K only) | ~45 min |
 | Smoke test | ~15 min |
 | Phase A (base train) | ~3–4 h |
 | HN mining | ~30 min |

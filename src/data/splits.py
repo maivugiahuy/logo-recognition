@@ -1,7 +1,8 @@
 """
 Build open-set (64/16/20 class) and closed-set (within seen classes) splits.
-Output: data/processed/openlogodet3k47/splits/open_{train,val,test}.json
-        data/processed/openlogodet3k47/splits/closed_{train,val,test}.json
+Only uses LogoDet-3K dataset.
+Output: data/processed/logodet3k/splits/open_{train,val,test}.json
+        data/processed/logodet3k/splits/closed_{train,val,test}.json
 """
 import json
 import random
@@ -9,8 +10,8 @@ from pathlib import Path
 
 import pandas as pd
 
-ANN = Path("data/processed/openlogodet3k47/annotations.parquet")
-SPLITS_DIR = Path("data/processed/openlogodet3k47/splits")
+ANN = Path("data/processed/logodet3k/annotations.parquet")
+SPLITS_DIR = Path("data/processed/logodet3k/splits")
 SEED = 42
 TRAIN_FRAC = 0.64
 VAL_FRAC = 0.16

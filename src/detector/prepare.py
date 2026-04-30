@@ -19,8 +19,8 @@ from tqdm import tqdm
 
 RAW_LOGODET = Path("data/raw/logodet3k")
 OUT = Path("data/processed/detector_yolo")
-ANN = Path("data/processed/openlogodet3k47/annotations.parquet")
-SPLITS = Path("data/processed/openlogodet3k47/splits")
+ANN = Path("data/processed/logodet3k/annotations.parquet")
+SPLITS = Path("data/processed/logodet3k/splits")
 
 
 def _to_yolo_bbox(x1, y1, x2, y2, img_w, img_h) -> tuple[float, float, float, float]:

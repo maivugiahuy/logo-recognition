@@ -1,4 +1,4 @@
-"""Step 10: Evaluate recall@1 across all 5 public datasets (Table 2)."""
+"""Step 10: Evaluate recall@1 on LogoDet-3K test set."""
 import argparse
 import sys
 sys.path.insert(0, ".")
