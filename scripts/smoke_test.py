@@ -159,4 +159,5 @@ def main():
     print("\nSmoke test complete.")
 
 
-if __name__ == "__mai
+if __name__ == "__main__":
+    main()

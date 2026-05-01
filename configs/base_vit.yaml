@@ -22,7 +22,7 @@ scheduler:
   patience: 2       # giảm LR nếu không cải thiện sau 2 epochs
   factor: 0.25
 
-early_stopping_patience: 6  # dừng hẳn nếu không cải thiện sau 6 epochs
+early_stopping_patience: 5  # dừng hẳn nếu không cải thiện sau 6 epochs
 
 training:
   epochs: 15

@@ -23,10 +23,10 @@ scheduler:
   patience: 2
   factor: 0.25
 
-early_stopping_patience: 6  # dừng hẳn nếu không cải thiện sau 6 epochs
+early_stopping_patience: 5  # dừng hẳn nếu không cải thiện sau 6 epochs
 
 training:
-  epochs: 25
+  epochs: 30
   batch_size: 512   # k=64, m=8
   k: 64             # classes per batch
   m: 8              # images per class
