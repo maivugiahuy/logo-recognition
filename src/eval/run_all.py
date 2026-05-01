@@ -14,8 +14,8 @@ CKPT = "checkpoints/vit_hn.pt"
 
 
 EVAL_CONFIGS = {
-    "logodet3k": {
-        "parquet": ANN_BASE / "logodet3k_test.parquet",
+    "openlogodet3k": {
+        "parquet": ANN_BASE / "openlogodet3k_test.parquet",
         "split": None,  # test split parquet covers just test images
         "mode": "closed_set",
         "targets": {"qvg": 0.9836, "all_vs_all": 0.9886},
@@ -23,15 +23,15 @@ EVAL_CONFIGS = {
 }
 
 
-def _ensure_logodet3k_parquet() -> Path:
-    """Tạo logodet3k_test.parquet từ annotations chính nếu chưa có.
+def _ensure_openlogodet3k_parquet() -> Path:
+    """Tạo openlogodet3k_test.parquet từ annotations chính nếu chưa có.
     Chỉ lấy ảnh thuộc closed_test split để eval đúng."""
     import json
-    per_ds = ANN_BASE / "logodet3k_test.parquet"
+    per_ds = ANN_BASE / "openlogodet3k_test.parquet"
     if per_ds.exists():
         return per_ds
-    main = ANN_BASE / "logodet3k/annotations.parquet"
-    closed_test_json = ANN_BASE / "logodet3k/splits/closed_test.json"
+    main = ANN_BASE / "openlogodet3k/annotations.parquet"
+    closed_test_json = ANN_BASE / "openlogodet3k/splits/closed_test.json"
     df = pd.read_parquet(main)
     if closed_test_json.exists():
         with open(closed_test_json) as f:
@@ -45,7 +45,7 @@ def _ensure_logodet3k_parquet() -> Path:
         print(f"  Filtered to closed_test: {df['class_name'].nunique()} classes, {len(df)} objects")
     else:
         # Fallback: dùng toàn bộ nếu không tìm thấy split file
-        print("  [WARN] closed_test.json not found, using all logodet3k data")
+        print("  [WARN] closed_test.json not found, using all openlogodet3k data")
         df = df[df["source"] == "logodet3k"]
     per_ds.parent.mkdir(exist_ok=True)
     df.to_parquet(per_ds, index=False)
@@ -57,7 +57,7 @@ def run_all(ckpt_path: str = CKPT) -> dict:
     for name, cfg in EVAL_CONFIGS.items():
         parquet = cfg["parquet"]
         if not parquet.exists():
-            parquet = _ensure_logodet3k_parquet()
+            parquet = _ensure_openlogodet3k_parquet()
         if not parquet.exists():
             print(f"[SKIP] {name}: parquet not found")
             continue

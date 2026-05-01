@@ -107,7 +107,7 @@ def load_gallery(dataset_name: str) -> tuple[faiss.Index, list[str]]:
     return index, labels
 
 
-def check_duplicate(brand_name: str, dataset_name: str = "logodet3k") -> int:
+def check_duplicate(brand_name: str, dataset_name: str = "openlogodet3k") -> int:
     """
     Kiểm tra brand đã tồn tại trong gallery chưa.
     Trả về số lượng ảnh hiện có (0 = chưa có).
@@ -120,7 +120,7 @@ def check_duplicate(brand_name: str, dataset_name: str = "logodet3k") -> int:
     return labels.count(brand_name)
 
 
-def remove_from_gallery(brand_name: str, dataset_name: str = "logodet3k") -> int:
+def remove_from_gallery(brand_name: str, dataset_name: str = "openlogodet3k") -> int:
     """
     Xóa toàn bộ vectors của brand khỏi gallery.
     Trả về số vectors đã xóa.
@@ -158,7 +158,7 @@ def remove_from_gallery(brand_name: str, dataset_name: str = "logodet3k") -> int
 def add_to_gallery(
     image_paths: list[str | Path],
     brand_name: str,
-    dataset_name: str = "logodet3k",
+    dataset_name: str = "openlogodet3k",
     ckpt_path: str | Path = CKPT,
     embed_dim: int = 128,
     input_size: int = 160,

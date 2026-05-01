@@ -29,8 +29,8 @@ from src.models.embedder_vit import build_vit_embedder
 from src.models.proxy_head import ProxyHead
 from src.training.optim import build_optimizer
 
-ANN = Path("data/processed/logodet3k/annotations.parquet")
-SPLITS = Path("data/processed/logodet3k/splits")
+ANN = Path("data/processed/openlogodet3k/annotations.parquet")
+SPLITS = Path("data/processed/openlogodet3k/splits")
 CKPT = Path("checkpoints")
 
 

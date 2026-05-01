@@ -5,12 +5,12 @@ sys.path.insert(0, ".")
 import pandas as pd
 from src.retrieval.gallery import build_gallery
 
-ANN = Path("data/processed/logodet3k/annotations.parquet")
+ANN = Path("data/processed/openlogodet3k/annotations.parquet")
 CKPT = "checkpoints/vit_hn.pt"
 
 # Per-dataset parquet file (test split)
 DATASETS = {
-    "logodet3k": "data/processed/logodet3k_test.parquet",
+    "openlogodet3k": "data/processed/openlogodet3k_test.parquet",
 }
 
 
