@@ -117,13 +117,13 @@ python -c "import torch; print(torch.cuda.is_available())"
 | Dataset | Size | Download | Destination |
 |---|---|---|---|
 | LogoDet-3K | ~3 GB | [Kaggle](https://www.kaggle.com/datasets/lyly99/logodet3k) | `data/raw/LogoDet-3K/` |
-| OpenLogo | ~2 GB | [GitHub](https://github.com/hang21/OpenLogo) | `data/raw/openlogo/openlogo/` |
+| OpenLogo | ~2 GB | [GitHub](https://github.com/hang21/OpenLogo) | `data/raw/openlogo/` |
 
 LogoDet-3K cấu trúc: `LogoDet-3K/{category}/{ClassName}/{id}.jpg` + `{id}.xml`
 
 OpenLogo cấu trúc:
 ```
-data/raw/openlogo/openlogo/
+data/raw/openlogo/
   Annotations/   ← *.xml (Pascal VOC)
   JPEGImages/    ← *.jpg
   ImageSets/
@@ -189,8 +189,8 @@ Output: `checkpoints/vit_hn.pt`
 python scripts/05_train_detector.py
 ```
 Config: `configs/detector_yolo26.yaml`
-- YOLO26m, class-agnostic (1 class: "logo"), imgsz=512, batch=64
-- 30 epochs, patience=7, cache=disk
+- YOLO26m, class-agnostic (1 class: "logo"), imgsz=512, batch=48
+- 25 epochs, patience=5, cache=disk
 
 Output: `runs/detect/checkpoints/yolo26m_logo/weights/best.pt`
 
@@ -223,29 +223,20 @@ Pipeline: YOLO26 detect → crop 160×160 → ViT embed → FAISS top-1 → clas
 
 ### Step 11b — Xem danh sách classes
 ```bash
-# Toàn bộ classes trong dataset → classes.txt
+# Xuất classes.txt (class_name | n_objects | n_images)
 python scripts/list_classes.py
 
-# Kèm stats (số ảnh, số objects) → classes.csv
-python scripts/list_classes.py --format csv --out classes.csv
-
-# Classes đang có trong gallery
-python scripts/list_classes.py --source gallery
-
-# Xuất từng split riêng
-python scripts/list_classes.py --source splits
+# Output tùy chỉnh
+python scripts/list_classes.py --out my_classes.txt
 ```
 
 ### Step 12 — Thêm class mới vào gallery (không cần train lại)
 ```bash
-# Nhiều class cùng lúc từ data/new_classes/ (mặc định)
+# Thêm từ data/new_classes/ (mỗi subfolder = 1 class)
 python scripts/add_class.py [--use_detector]
 
-# 1 class từ folder
-python scripts/add_class.py --class_name nike --folder path/to/nike_logos/
-
-# Ảnh thực tế — YOLO tự detect và crop logo
-python scripts/add_class.py --class_name nike --folder photos/ --use_detector
+# Chỉ định folder_root khác
+python scripts/add_class.py --folder_root path/to/brands/
 
 # Xem danh sách classes trong gallery
 python scripts/add_class.py --list
@@ -320,9 +311,9 @@ data/new_classes/
 |---|---|
 | Model | yolo26m.pt |
 | imgsz | 512 |
-| batch | 64 |
-| epochs | 30 |
-| patience | 7 |
+| batch | 48 |
+| epochs | 25 |
+| patience | 5 |
 | cache | disk |
 
 ---
