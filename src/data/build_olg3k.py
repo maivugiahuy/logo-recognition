@@ -184,4 +184,59 @@ def dedupe_images(df: pd.DataFrame) -> pd.DataFrame:
         try:
             phash = str(imagehash.phash(Image.open(img).convert("RGB")))
         except Exception:
-            phash = img  # fallback: dùng 
+            phash = img  # fallback: dùng path làm hash
+        if phash not in seen[cls]:
+            seen[cls].add(phash)
+            keep_image.add((cls, img))
+
+    # Bước 2: broadcast về toàn bộ df
+    keep_mask = df.apply(
+        lambda r: (r["class_name"], r["image_path"]) in keep_image, axis=1
+    )
+    df = df[keep_mask]
+    print(f"  dedupe: {before} → {len(df)} objects")
+    return df
+
+
+def build() -> pd.DataFrame:
+    aliases = load_aliases()
+
+    print("Parsing sources...")
+    records_ld3k = parse_logodet3k()
+    records_ol = parse_openlogo()
+    records = records_ld3k + records_ol
+    df = pd.DataFrame(records)
+
+    # Per-source summary
+    if "source" in df.columns:
+        for src, grp in df.groupby("source"):
+            print(f"  [{src}] {len(grp)} objects from {grp['image_path'].nunique()} images")
+    print(f"  raw objects (combined): {len(df)}")
+
+    # Normalize + merge class names (Appendix B steps 1–2)
+    df["class_name"] = df["class_name"].apply(lambda n: _apply_aliases(n, aliases))
+
+    # Filter bbox size
+    df = filter_min_side(df)
+
+    # Dedupe within class
+    df = dedupe_images(df)
+
+    # Drop classes with fewer than MIN_INSTANCES objects
+    class_counts = df.groupby("class_name").size()
+    valid_classes = class_counts[class_counts >= MIN_INSTANCES].index
+    before = df["class_name"].nunique()
+    df = df[df["class_name"].isin(valid_classes)]
+    print(f"  class filter (≥{MIN_INSTANCES} objects): {before} → {df['class_name'].nunique()} classes")
+
+    print(f"\nFinal: {df['class_name'].nunique()} classes | "
+          f"{df['image_path'].nunique()} images | {len(df)} objects")
+
+    OUT.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(OUT / "annotations.parquet", index=False)
+    print(f"Saved → {OUT / 'annotations.parquet'}")
+    return df
+
+
+if __name__ == "__main__":
+    build()
