@@ -20,6 +20,12 @@ EVAL_CONFIGS = {
         "mode": "closed_set",
         "targets": {"qvg": 0.9836, "all_vs_all": 0.9886},
     },
+    "openlogodet3k_openset": {
+        "parquet": ANN_BASE / "openlogodet3k_openset_test.parquet",
+        "split": None,
+        "mode": "open_set",
+        "targets": {},  # không có paper target cho open-set
+    },
 }
 
 
@@ -52,12 +58,36 @@ def _ensure_openlogodet3k_parquet() -> Path:
     return per_ds
 
 
+def _ensure_openset_test_parquet() -> Path:
+    """Tạo parquet chỉ chứa các class trong open_test.json (unseen classes)."""
+    import json
+    out = ANN_BASE / "openlogodet3k_openset_test.parquet"
+    if out.exists():
+        return out
+    main = ANN_BASE / "openlogodet3k/annotations.parquet"
+    open_test_json = ANN_BASE / "openlogodet3k/splits/open_test.json"
+    if not open_test_json.exists():
+        print("  [WARN] open_test.json not found — skipping open-set eval")
+        return out
+    with open(open_test_json) as f:
+        test_classes = set(json.load(f))
+    df = pd.read_parquet(main)
+    df = df[df["class_name"].isin(test_classes)]
+    print(f"  Open-set test: {df['class_name'].nunique()} classes, {len(df)} objects")
+    out.parent.mkdir(exist_ok=True)
+    df.to_parquet(out, index=False)
+    return out
+
+
 def run_all(ckpt_path: str = CKPT) -> dict:
     all_results = {}
     for name, cfg in EVAL_CONFIGS.items():
         parquet = cfg["parquet"]
         if not parquet.exists():
-            parquet = _ensure_openlogodet3k_parquet()
+            if name == "openlogodet3k_openset":
+                parquet = _ensure_openset_test_parquet()
+            else:
+                parquet = _ensure_openlogodet3k_parquet()
         if not parquet.exists():
             print(f"[SKIP] {name}: parquet not found")
             continue

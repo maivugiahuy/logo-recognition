@@ -3,9 +3,9 @@
 # NMS-free end-to-end inference, MuSGD optimizer, ProgLoss (tốt cho logo nhỏ)
 model: yolo26m.pt
 data: data/processed/detector_yolo/dataset.yaml
-imgsz: 512
+imgsz: 640
 epochs: 30
-batch: 40
+batch: 32
 device: 0
 project: checkpoints
 name: yolo26m_logo
