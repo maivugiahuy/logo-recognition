@@ -1,21 +1,27 @@
 """
-Thêm brand mới vào gallery mà không cần train lại.
+Thêm class mới vào gallery mà không cần train lại.
 
 Usage:
     # Ảnh đã crop sẵn logo → dùng folder
-    python scripts/add_brand.py --brand pepsi --folder path/to/pepsi_logos/
+    python scripts/add_class.py --class_name pepsi --folder path/to/pepsi_logos/
 
     # Ảnh thực tế (có cảnh xung quanh) → YOLO tự detect logo
-    python scripts/add_brand.py --brand pepsi --folder photos/ --use_detector
+    python scripts/add_class.py --class_name pepsi --folder photos/ --use_detector
 
-    # Nhiều brand cùng lúc (mỗi subfolder = 1 brand)
-    python scripts/add_brand.py --folder_root path/to/brands/ [--use_detector]
+    # Nhiều class cùng lúc từ data/new_classes/ (mỗi subfolder = 1 class)
+    python scripts/add_class.py [--use_detector]
+
+    # Chỉ định folder_root khác
+    python scripts/add_class.py --folder_root path/to/brands/ [--use_detector]
 
     # Danh sách ảnh lẻ
-    python scripts/add_brand.py --brand pepsi --images logo1.jpg logo2.jpg
+    python scripts/add_class.py --class_name pepsi --images logo1.jpg logo2.jpg
 
-    # Xem brands trong gallery
-    python scripts/add_brand.py --list
+    # Xem classes trong gallery
+    python scripts/add_class.py --list
+
+    # Xóa class khỏi gallery
+    python scripts/add_class.py --remove pepsi
 """
 import argparse
 import json
@@ -33,7 +39,7 @@ def collect_images(folder: Path) -> list[Path]:
     return sorted(p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXTS)
 
 
-def list_brands(dataset_name: str) -> None:
+def list_classes(dataset_name: str) -> None:
     labels_path = GALLERY_DIR / f"{dataset_name}_labels.json"
     if not labels_path.exists():
         print(f"Gallery '{dataset_name}' chưa được build. Chạy 06_build_galleries.py trước.")
@@ -41,14 +47,14 @@ def list_brands(dataset_name: str) -> None:
     with open(labels_path) as f:
         labels = json.load(f)
     counts = Counter(labels)
-    print(f"Gallery '{dataset_name}': {len(counts)} brands, {len(labels)} vectors\n")
-    for brand, count in sorted(counts.items()):
-        print(f"  {brand}: {count} ảnh")
+    print(f"Gallery '{dataset_name}': {len(counts)} classes, {len(labels)} vectors\n")
+    for cls, count in sorted(counts.items()):
+        print(f"  {cls}: {count} ảnh")
 
 
 def add_with_detector(
     image_paths: list[Path],
-    brand_name: str,
+    class_name: str,
     detector_weights: str,
     conf: float,
     **kwargs,
@@ -85,43 +91,49 @@ def add_with_detector(
         print(f"    {img_path.name}: {len(boxes)} logo(s) detected")
 
     if not cropped_paths:
-        print(f"  [WARN] Không tìm thấy logo nào trong toàn bộ ảnh của '{brand_name}'")
+        print(f"  [WARN] Không tìm thấy logo nào trong toàn bộ ảnh của '{class_name}'")
         shutil.rmtree(tmp_dir)
         return
 
-    print(f"  → Embedding {len(cropped_paths)} crop(s) cho brand '{brand_name}'...")
-    add_to_gallery(image_paths=cropped_paths, brand_name=brand_name, **kwargs)
+    print(f"  → Embedding {len(cropped_paths)} crop(s) cho class '{class_name}'...")
+    add_to_gallery(image_paths=cropped_paths, brand_name=class_name, **kwargs)
     shutil.rmtree(tmp_dir)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--brand", default=None, help="Tên brand (dùng với --folder hoặc --images)")
-    parser.add_argument("--folder", default=None, help="Folder chứa ảnh logo của 1 brand")
-    parser.add_argument("--folder_root", default=None,
-                        help="Folder cha chứa nhiều subfolder, mỗi subfolder = 1 brand")
-    parser.add_argument("--images", nargs="+", default=[], help="Danh sách ảnh lẻ")
+    parser.add_argument("--class_name", default=None,
+                        help="Tên class (dùng với --folder hoặc --images)")
+    parser.add_argument("--folder", default=None,
+                        help="Folder chứa ảnh logo của 1 class")
+    parser.add_argument("--folder_root", default="data/new_classes",
+                        help="Folder cha chứa nhiều subfolder, mỗi subfolder = 1 class "
+                             "(default: data/new_classes)")
+    parser.add_argument("--images", nargs="+", default=[],
+                        help="Danh sách ảnh lẻ")
     parser.add_argument("--crop", nargs=4, type=int, default=None,
                         metavar=("X1", "Y1", "X2", "Y2"),
                         help="Crop box thủ công áp dụng cho tất cả ảnh")
     parser.add_argument("--use_detector", action="store_true",
                         help="Dùng YOLO detect logo tự động thay vì dùng toàn ảnh")
-    parser.add_argument("--detector", default="runs/detect/checkpoints/yolov8_logo/weights/best.pt",
+    parser.add_argument("--detector", default="runs/detect/checkpoints/yolo26m_logo/weights/best.pt",
                         help="Path tới YOLO weights")
     parser.add_argument("--det_conf", type=float, default=0.1,
                         help="YOLO confidence threshold (default: 0.1)")
-    parser.add_argument("--gallery", default="logodet3k", help="Tên gallery cần update")
+    parser.add_argument("--gallery", default="logodet3k",
+                        help="Tên gallery cần update")
     parser.add_argument("--embedder", default="checkpoints/vit_hn.pt")
     parser.add_argument("--on_duplicate", default="ask",
                         choices=["ask", "append", "replace", "skip"],
-                        help="Xử lý khi brand đã tồn tại: ask/append/replace/skip (default: ask)")
-    parser.add_argument("--list", action="store_true", help="Liệt kê brands trong gallery")
-    parser.add_argument("--remove", default=None, metavar="BRAND",
-                        help="Xóa brand khỏi gallery")
+                        help="Xử lý khi class đã tồn tại: ask/append/replace/skip (default: ask)")
+    parser.add_argument("--list", action="store_true",
+                        help="Liệt kê classes trong gallery")
+    parser.add_argument("--remove", default=None, metavar="CLASS",
+                        help="Xóa class khỏi gallery")
     args = parser.parse_args()
 
     if args.list:
-        list_brands(args.gallery)
+        list_classes(args.gallery)
         sys.exit(0)
 
     if args.remove:
@@ -133,14 +145,14 @@ if __name__ == "__main__":
     common_kwargs = dict(dataset_name=args.gallery, ckpt_path=args.embedder, crop_box=crop_box)
     detector_kwargs = dict(detector_weights=args.detector, conf=args.det_conf)
 
-    def resolve_duplicate_action(brand: str) -> str:
+    def resolve_duplicate_action(class_name: str) -> str:
         """Nếu --on_duplicate=ask thì hỏi user, ngược lại dùng giá trị CLI."""
         if args.on_duplicate != "ask":
             return args.on_duplicate
-        existing = check_duplicate(brand, args.gallery)
+        existing = check_duplicate(class_name, args.gallery)
         if existing == 0:
-            return "append"  # brand mới, không có gì để hỏi
-        print(f"\n⚠️  Brand '{brand}' đã có {existing} ảnh trong gallery.")
+            return "append"  # class mới, không có gì để hỏi
+        print(f"\n⚠️  Class '{class_name}' đã có {existing} ảnh trong gallery.")
         print("   [1] append  — thêm ảnh mới vào bên cạnh (tăng coverage)")
         print("   [2] replace — xóa ảnh cũ, dùng ảnh mới hoàn toàn")
         print("   [3] skip    — bỏ qua, không thay đổi gì")
@@ -154,50 +166,50 @@ if __name__ == "__main__":
                 return "skip"
             print("   Nhập 1, 2, hoặc 3.")
 
-    def run_add(imgs: list[Path], brand: str) -> None:
-        action = resolve_duplicate_action(brand)
+    def run_add(imgs: list[Path], class_name: str) -> None:
+        action = resolve_duplicate_action(class_name)
         kwargs = {**common_kwargs, "on_duplicate": action}
         if args.use_detector:
-            add_with_detector(imgs, brand, **detector_kwargs, **kwargs)
+            add_with_detector(imgs, class_name, **detector_kwargs, **kwargs)
         else:
-            add_to_gallery(image_paths=imgs, brand_name=brand, **kwargs)
+            add_to_gallery(image_paths=imgs, brand_name=class_name, **kwargs)
 
-    # ── Nhiều brand từ folder_root ─────────────────────────────────────────
-    if args.folder_root:
-        root = Path(args.folder_root)
-        subfolders = sorted(p for p in root.iterdir() if p.is_dir())
-        if not subfolders:
-            print(f"Không tìm thấy subfolder nào trong {root}")
-            sys.exit(1)
-        print(f"Tìm thấy {len(subfolders)} brand(s) trong {root}\n")
-        for subfolder in subfolders:
-            imgs = collect_images(subfolder)
-            if not imgs:
-                print(f"  [SKIP] {subfolder.name}: không có ảnh")
-                continue
-            print(f"\n── Brand: {subfolder.name} ({len(imgs)} ảnh) ──")
-            run_add(imgs, subfolder.name)
-        sys.exit(0)
-
-    # ── 1 brand từ folder ─────────────────────────────────────────────────
+    # ── 1 class từ folder ────────────────────────────────────────────────────
     if args.folder:
         folder = Path(args.folder)
         imgs = collect_images(folder)
-        brand = args.brand or folder.name
+        class_name = args.class_name or folder.name
         if not imgs:
             print(f"Không tìm thấy ảnh trong {folder}")
             sys.exit(1)
-        print(f"Brand '{brand}': {len(imgs)} ảnh từ {folder}")
-        run_add(imgs, brand)
+        print(f"Class '{class_name}': {len(imgs)} ảnh từ {folder}")
+        run_add(imgs, class_name)
         sys.exit(0)
 
-    # ── Danh sách ảnh lẻ ──────────────────────────────────────────────────
+    # ── Danh sách ảnh lẻ ─────────────────────────────────────────────────────
     if args.images:
-        if not args.brand:
-            print("Cần truyền --brand khi dùng --images")
+        if not args.class_name:
+            print("Cần truyền --class_name khi dùng --images")
             sys.exit(1)
-        run_add([Path(p) for p in args.images], args.brand)
+        run_add([Path(p) for p in args.images], args.class_name)
         sys.exit(0)
 
-    parser.print_help()
-
+    # ── Nhiều class từ folder_root (mặc định: data/new_classes) ──────────────
+    root = Path(args.folder_root)
+    if not root.exists():
+        print(f"Folder '{root}' không tồn tại.")
+        print(f"Tạo folder và thêm subfolder cho mỗi class (VD: {root}/nike/, {root}/adidas/)")
+        sys.exit(1)
+    subfolders = sorted(p for p in root.iterdir() if p.is_dir())
+    if not subfolders:
+        print(f"Không tìm thấy subfolder nào trong {root}")
+        print(f"Mỗi subfolder = 1 class (tên subfolder = tên class)")
+        sys.exit(1)
+    print(f"Tìm thấy {len(subfolders)} class(es) trong {root}\n")
+    for subfolder in subfolders:
+        imgs = collect_images(subfolder)
+        if not imgs:
+            print(f"  [SKIP] {subfolder.name}: không có ảnh")
+            continue
+        print(f"\n── Class: {subfolder.name} ({len(imgs)} ảnh) ──")
+        run_add(imgs, subfolder.name)

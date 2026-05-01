@@ -26,8 +26,8 @@ early_stopping_patience: 6  # dừng hẳn nếu không cải thiện sau 6 epoc
 
 training:
   epochs: 15
-  batch_size: 768   # k=96, m=8
-  k: 96             # classes per batch
+  batch_size: 512   # k=64, m=8
+  k: 64             # classes per batch
   m: 8              # images per class
 
 amp: true

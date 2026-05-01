@@ -1,10 +1,13 @@
 """
-Build LogoDet-3K dataset.
+Build LogoDet-3K + OpenLogo combined dataset.
 Output: data/processed/logodet3k/annotations.parquet
-Target: ~3000 classes / ~158,652 images / ~194,261 objects
+Target (LogoDet-3K only):  ~2210 classes / ~101k images / ~101k objects
+Target (combined):         ~2400+ classes after merge + dedup
 
-Dataset path:
-  LogoDet-3K  : DATASET_ROOT/LogoDet-3K/{category}/{ClassName}/{id}.jpg + {id}.xml
+Dataset paths:
+  LogoDet-3K : DATASET_ROOT/LogoDet-3K/{category}/{ClassName}/{id}.jpg + {id}.xml
+  OpenLogo   : DATASET_ROOT/openlogo/openlogo/Annotations/*.xml
+               DATASET_ROOT/openlogo/openlogo/JPEGImages/*.jpg
 """
 import os
 import re
@@ -99,6 +102,51 @@ def parse_logodet3k() -> list[dict]:
     return records
 
 
+def parse_openlogo() -> list[dict]:
+    """OpenLogo: Pascal VOC XML annotations.
+
+    Layout:
+      DATASET_ROOT/openlogo/openlogo/Annotations/{id}.xml
+      DATASET_ROOT/openlogo/openlogo/JPEGImages/{id}.jpg
+
+    Class name = <object><name> (already lowercase, e.g. "burgerking", "adidas").
+    """
+    root = DATASET_ROOT / "openlogo" / "openlogo"
+    ann_dir = root / "Annotations"
+    img_dir = root / "JPEGImages"
+    if not ann_dir.exists():
+        print(f"[WARN] OpenLogo not found at {ann_dir} — skipping")
+        return []
+    ann_files = list(ann_dir.glob("*.xml"))
+    records = []
+    for xml_path in tqdm(ann_files, desc="OpenLogo"):
+        img_path = img_dir / (xml_path.stem + ".jpg")
+        if not img_path.exists():
+            img_path = img_dir / (xml_path.stem + ".png")
+        if not img_path.exists():
+            continue
+        try:
+            tree = ET.parse(xml_path)
+            xml_root = tree.getroot()
+        except ET.ParseError:
+            continue
+        for obj in xml_root.findall("object"):
+            name = obj.findtext("name", "unknown")
+            bnd = obj.find("bndbox")
+            if bnd is None:
+                continue
+            records.append({
+                "image_path": str(img_path),
+                "class_name": name,
+                "x1": float(bnd.findtext("xmin", "0")),
+                "y1": float(bnd.findtext("ymin", "0")),
+                "x2": float(bnd.findtext("xmax", "0")),
+                "y2": float(bnd.findtext("ymax", "0")),
+                "source": "openlogo",
+            })
+    return records
+
+
 # ── Main pipeline ───────────────────────────────────────────────────────────
 
 def filter_min_side(df: pd.DataFrame) -> pd.DataFrame:
@@ -136,54 +184,4 @@ def dedupe_images(df: pd.DataFrame) -> pd.DataFrame:
         try:
             phash = str(imagehash.phash(Image.open(img).convert("RGB")))
         except Exception:
-            phash = img  # fallback: dùng path làm hash
-        if phash not in seen[cls]:
-            seen[cls].add(phash)
-            keep_image.add((cls, img))
-
-    # Bước 2: broadcast về toàn bộ df (mỗi bbox thuộc ảnh được giữ → giữ hết bbox của ảnh đó)
-    keep_mask = df.apply(
-        lambda r: (r["class_name"], r["image_path"]) in keep_image, axis=1
-    )
-    df = df[keep_mask]
-    print(f"  dedupe: {before} → {len(df)} objects")
-    return df
-
-
-def build() -> pd.DataFrame:
-    aliases = load_aliases()
-
-    print("Parsing sources...")
-    records = parse_logodet3k()
-    df = pd.DataFrame(records)
-    print(f"  raw objects: {len(df)}")
-
-    # Normalize + merge class names (Appendix B steps 1–2)
-    df["class_name"] = df["class_name"].apply(lambda n: _apply_aliases(n, aliases))
-
-    # Filter bbox size
-    df = filter_min_side(df)
-
-    # Dedupe within class
-    df = dedupe_images(df)
-
-    # Drop classes with fewer than MIN_INSTANCES objects
-    # BUG FIX: paper Appendix B nói "fewer than 20 instances" = bounding box objects,
-    # không phải unique images. Dùng .size() thay vì .nunique() để đếm đúng số objects.
-    class_counts = df.groupby("class_name").size()
-    valid_classes = class_counts[class_counts >= MIN_INSTANCES].index
-    before = df["class_name"].nunique()
-    df = df[df["class_name"].isin(valid_classes)]
-    print(f"  class filter (≥{MIN_INSTANCES} objects): {before} → {df['class_name'].nunique()} classes")
-
-    print(f"\nFinal: {df['class_name'].nunique()} classes | "
-          f"{df['image_path'].nunique()} images | {len(df)} objects")
-
-    OUT.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(OUT / "annotations.parquet", index=False)
-    print(f"Saved → {OUT / 'annotations.parquet'}")
-    return df
-
-
-if __name__ == "__main__":
-    build()
+            phash = img  # fallback: dùng 

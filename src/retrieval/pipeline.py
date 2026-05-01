@@ -2,7 +2,7 @@
 End-to-end inference pipeline (Step 11):
   predict(image) → [(box, brand_label, score, is_unknown)]
 
-1. YOLOv8 detects logo boxes
+1. YOLO26 detects logo boxes
 2. Crop + resize 160×160
 3. ViT embedder → 128-d L2 vector
 4. FAISS IndexFlatIP → top-1 brand
@@ -19,7 +19,7 @@ from src.detector.detect import LogoDetector
 from src.models.embedder_vit import build_vit_embedder
 from src.retrieval.gallery import load_gallery
 
-DEFAULT_DETECTOR = "runs/detect/checkpoints/yolov8_logo/weights/best.pt"
+DEFAULT_DETECTOR = "runs/detect/checkpoints/yolo26m_logo/weights/best.pt"
 DEFAULT_EMBEDDER = "checkpoints/vit_hn.pt"
 DEFAULT_GALLERY = "logodet3k"
 

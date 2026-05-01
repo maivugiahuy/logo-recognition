@@ -1,0 +1,16 @@
+# Class-agnostic logo detector — YOLO26m (Ultralytics, Jan 2026)
+# YOLO26m: 20.4M params, mAP50-95=53.1 COCO — tốt hơn YOLOv8m (50.2) với ít params hơn
+# NMS-free end-to-end inference, MuSGD optimizer, ProgLoss (tốt cho logo nhỏ)
+model: yolo26m.pt
+data: data/processed/detector_yolo/dataset.yaml
+imgsz: 512
+epochs: 25
+batch: 64           # RTX 5060 Ti 16GB: 512px × batch64
+device: 0
+project: runs/detect/checkpoints
+name: yolo26m_logo
+exist_ok: true
+patience: 5
+save_period: 10
+workers: 4
+cache: disk         # 65K train images → disk cache (RAM không đủ)
