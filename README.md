@@ -19,9 +19,21 @@ Reproduction of *Image-Text Pre-Training for Logo Recognition* (Hubenthal & Kuma
 | 4× V100 | 1× RTX 5060 Ti 16GB + AMP bfloat16 | Hardware |
 | OpenLogoDet3K47 composite (4 datasets) | LogoDet-3K + OpenLogo | PL2K, Flickr32, BelgaLogos không có; 2 dataset công khai |
 
-## Results (v1 — LogoDet-3K only)
+## Results
 
-> Kết quả dưới đây là run đầu tiên chỉ dùng LogoDet-3K. Sau khi retrain với LogoDet-3K + OpenLogo, cập nhật lại.
+### v2 — LogoDet-3K + OpenLogo
+
+| Metric | Ours | Paper target | Gap |
+|---|---|---|---|
+| Phase A val recall@1 | **0.9651** | ~0.97 | -0.49pp |
+| Phase C val recall@1 | **0.9369** | ~0.96 | -2.31pp |
+| YOLO AP@0.5 (val) | **0.653** | ≥0.70 | -4.7pp |
+| Eval Q-vs-G recall@1 | **0.9331** | 0.9836 | -5.05pp |
+| Eval All-vs-All recall@1 | **0.9445** | 0.9886 | -4.41pp |
+| Eval small logo Q-vs-G | **0.9134** | — | — |
+| Eval large logo Q-vs-G | **0.9485** | — | — |
+
+### v1 — LogoDet-3K only
 
 | Metric | Ours | Paper target | Gap |
 |---|---|---|---|
@@ -33,7 +45,7 @@ Reproduction of *Image-Text Pre-Training for Logo Recognition* (Hubenthal & Kuma
 | Eval small logo Q-vs-G | **0.9099** | — | — |
 | Eval large logo Q-vs-G | **0.9498** | — | — |
 
-Gap ~5pp so với paper là hợp lý: paper dùng 4 dataset, v1 chỉ dùng LogoDet-3K.
+Gap ~5pp so với paper là hợp lý: paper dùng 4 dataset (PL2K, Flickr32, BelgaLogos không có sẵn).
 
 ## Speed optimizations applied
 

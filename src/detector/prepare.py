@@ -35,8 +35,6 @@ def _to_yolo_bbox(x1, y1, x2, y2, img_w, img_h) -> tuple[float, float, float, fl
 
 def prepare_yolo_dataset() -> None:
     df = pd.read_parquet(ANN)
-    # Use only LogoDet3K source for detector training
-    df = df[df["source"] == "logodet3k"].copy()
 
     # Load image-level splits (any class in train_classes goes to train split)
     with open(SPLITS / "open_train.json") as f:
@@ -44,14 +42,17 @@ def prepare_yolo_dataset() -> None:
     with open(SPLITS / "open_val.json") as f:
         val_cls = set(json.load(f))
 
-    def get_split(cls):
+    def get_split(cls, source):
+        # OpenLogo → val only (không có disk cache cũ, tránh data leak)
+        if source == "openlogo":
+            return "val"
         if cls in train_cls:
             return "train"
         elif cls in val_cls:
             return "val"
         return "test"
 
-    df["yolo_split"] = df["class_name"].apply(get_split)
+    df["yolo_split"] = df.apply(lambda r: get_split(r["class_name"], r["source"]), axis=1)
 
     for split in ["train", "val", "test"]:
         (OUT / "images" / split).mkdir(parents=True, exist_ok=True)
