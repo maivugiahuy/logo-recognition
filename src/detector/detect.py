@@ -12,7 +12,7 @@ from ultralytics import YOLO
 class LogoDetector:
     def __init__(
         self,
-        weights: str | Path = "runs/detect/checkpoints/yolo26m_logo/weights/best.pt",
+        weights: str | Path = "runs/detect/runs/detect/checkpoints/yolo26m_logo/weights/best.pt",
         conf: float = 0.1,
         iou: float = 0.45,
         imgsz: int = 512,

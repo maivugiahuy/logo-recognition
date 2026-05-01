@@ -76,7 +76,7 @@ def main():
     loader = DataLoader(train_ds, batch_sampler=sampler, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=64, shuffle=False, num_workers=0)
 
-    embedder = build_vit_embedder(EMBED_DIM, INPUT_SIZE).to(device)
+    embedder = build_vit_embedder(EMBED_DIM, INPUT_SIZE, freeze_blocks=0).to(device)
     proxy_head = ProxyHead(train_ds.num_classes, EMBED_DIM).to(device)
     # BUG FIX: proxy init dùng loader không có sampler để thấy toàn bộ training data
     init_loader = DataLoader(train_ds, batch_size=64, shuffle=False, num_workers=0)

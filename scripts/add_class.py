@@ -116,7 +116,7 @@ if __name__ == "__main__":
                         help="Crop box thủ công áp dụng cho tất cả ảnh")
     parser.add_argument("--use_detector", action="store_true",
                         help="Dùng YOLO detect logo tự động thay vì dùng toàn ảnh")
-    parser.add_argument("--detector", default="runs/detect/checkpoints/yolo26m_logo/weights/best.pt",
+    parser.add_argument("--detector", default="runs/detect/runs/detect/checkpoints/yolo26m_logo/weights/best.pt",
                         help="Path tới YOLO weights")
     parser.add_argument("--det_conf", type=float, default=0.1,
                         help="YOLO confidence threshold (default: 0.1)")

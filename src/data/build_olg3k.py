@@ -111,7 +111,7 @@ def parse_openlogo() -> list[dict]:
 
     Class name = <object><name> (already lowercase, e.g. "burgerking", "adidas").
     """
-    root = DATASET_ROOT / "openlogo" / "openlogo"
+    root = DATASET_ROOT / "openlogo"
     ann_dir = root / "Annotations"
     img_dir = root / "JPEGImages"
     if not ann_dir.exists():
