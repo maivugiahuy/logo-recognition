@@ -184,4 +184,59 @@ def dedupe_images(df: pd.DataFrame) -> pd.DataFrame:
         try:
             phash = str(imagehash.phash(Image.open(img).convert("RGB")))
         except Exception:
-            phash = img  # fallback: dùng path làm has
+            phash = img  # fallback: dùng path làm hash
+        if phash not in seen[cls]:
+            seen[cls].add(phash)
+            keep_image.add((cls, img))
+
+    # Bước 2: broadcast kết quả về toàn bộ df
+    df["_key"] = list(zip(df["class_name"], df["image_path"]))
+    df = df[df["_key"].isin(keep_image)].drop(columns=["_key"])
+    print(f"  dedupe: {before} → {len(df)} objects")
+    return df
+
+
+def filter_min_instances(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop classes with fewer than MIN_INSTANCES objects."""
+    counts = df["class_name"].value_counts()
+    keep = counts[counts >= MIN_INSTANCES].index
+    before = df["class_name"].nunique()
+    df = df[df["class_name"].isin(keep)]
+    print(f"  min_instances filter: {before} → {df['class_name'].nunique()} classes")
+    return df
+
+
+def build() -> pd.DataFrame:
+    print("Parsing LogoDet-3K...")
+    records_ld3k = parse_logodet3k()
+    print(f"  LogoDet-3K: {len(records_ld3k)} objects")
+
+    print("Parsing OpenLogo...")
+    records_ol = parse_openlogo()
+    print(f"  OpenLogo: {len(records_ol)} objects")
+
+    records = records_ld3k + records_ol
+    df = pd.DataFrame(records)
+    print(f"\nCombined raw: {df['class_name'].nunique()} classes, {len(df)} objects")
+
+    # Normalize class names + apply aliases
+    aliases = load_aliases()
+    df["class_name"] = df["class_name"].apply(lambda n: _apply_aliases(n, aliases))
+
+    # Filters
+    df = filter_min_side(df)
+    df = dedupe_images(df)
+    df = filter_min_instances(df)
+
+    print(f"\nFinal: {df['class_name'].nunique()} classes, "
+          f"{df['image_path'].nunique()} images, "
+          f"{len(df)} objects")
+
+    OUT.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(OUT / "annotations.parquet", index=False)
+    print(f"Saved → {OUT / 'annotations.parquet'}")
+    return df
+
+
+if __name__ == "__main__":
+    build()
