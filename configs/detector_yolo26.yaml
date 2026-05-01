@@ -5,9 +5,9 @@ model: yolo26m.pt
 data: data/processed/detector_yolo/dataset.yaml
 imgsz: 512
 epochs: 25
-batch: 32           # RTX 5060 Ti 16GB: 512px × batch64
+batch: 48           # RTX 5060 Ti 16GB: 512px × batch64
 device: 0
-project: runs/detect/checkpoints
+project: checkpoints
 name: yolo26m_logo
 exist_ok: true
 patience: 5

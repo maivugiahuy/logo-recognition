@@ -32,7 +32,7 @@ def draw_results(image_path: str, results: list[dict], out_path: str | None = No
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("images", nargs="+", help="Image paths")
-    parser.add_argument("--detector", default="runs/detect/runs/detect/checkpoints/yolo26m_logo/weights/best.pt")
+    parser.add_argument("--detector", default="runs/detect/checkpoints/yolo26m_logo/weights/best.pt")
     parser.add_argument("--embedder", default="checkpoints/vit_hn.pt")
     parser.add_argument("--gallery", default="logodet3k")
     parser.add_argument("--conf", type=float, default=0.1)
