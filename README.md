@@ -77,7 +77,7 @@ https://visualstudio.microsoft.com/visual-cpp-build-tools/
 
 #### 0.6 — Clone repo + create venv
 ```cmd
-git clone <your-repo-url> "C:\Logo Recognition"
+git clone https://github.com/maivugiahuy/logo-recognition "C:\Logo Recognition"
 cd "C:\Logo Recognition"
 python -m venv .venv
 .venv\Scripts\activate
