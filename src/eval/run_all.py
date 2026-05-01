@@ -16,15 +16,9 @@ CKPT = "checkpoints/vit_hn.pt"
 EVAL_CONFIGS = {
     "openlogodet3k": {
         "parquet": ANN_BASE / "openlogodet3k_test.parquet",
-        "split": None,
+        "split": None,  # test split parquet covers just test images
         "mode": "closed_set",
         "targets": {"qvg": 0.9836, "all_vs_all": 0.9886},
-    },
-    "openlogo": {
-        "parquet": ANN_BASE / "openlogo_test.parquet",
-        "split": None,
-        "mode": "closed_set",
-        "targets": {},  # không có paper target riêng cho OpenLogo
     },
 }
 
@@ -58,41 +52,12 @@ def _ensure_openlogodet3k_parquet() -> Path:
     return per_ds
 
 
-def _ensure_openlogo_parquet() -> Path:
-    """Tạo openlogo_test.parquet từ annotations chính — chỉ lấy source=openlogo, closed_test split."""
-    import json
-    per_ds = ANN_BASE / "openlogo_test.parquet"
-    if per_ds.exists():
-        return per_ds
-    main = ANN_BASE / "openlogodet3k/annotations.parquet"
-    closed_test_json = ANN_BASE / "openlogodet3k/splits/closed_test.json"
-    df = pd.read_parquet(main)
-    df = df[df["source"] == "openlogo"].copy()
-    if closed_test_json.exists():
-        with open(closed_test_json) as f:
-            closed_test = json.load(f)
-        keep_rows = []
-        for cls, imgs in closed_test.items():
-            img_set = set(imgs)
-            rows = df[(df["class_name"] == cls) & (df["image_path"].isin(img_set))]
-            if len(rows):
-                keep_rows.append(rows)
-        df = pd.concat(keep_rows, ignore_index=True) if keep_rows else df.iloc[:0]
-    print(f"  OpenLogo test: {df['class_name'].nunique()} classes, {len(df)} objects")
-    per_ds.parent.mkdir(exist_ok=True)
-    df.to_parquet(per_ds, index=False)
-    return per_ds
-
-
 def run_all(ckpt_path: str = CKPT) -> dict:
     all_results = {}
     for name, cfg in EVAL_CONFIGS.items():
         parquet = cfg["parquet"]
         if not parquet.exists():
-            if name == "openlogo":
-                parquet = _ensure_openlogo_parquet()
-            else:
-                parquet = _ensure_openlogodet3k_parquet()
+            parquet = _ensure_openlogodet3k_parquet()
         if not parquet.exists():
             print(f"[SKIP] {name}: parquet not found")
             continue
