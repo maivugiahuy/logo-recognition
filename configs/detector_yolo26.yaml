@@ -5,12 +5,12 @@ model: yolo26m.pt
 data: data/processed/detector_yolo/dataset.yaml
 imgsz: 512
 epochs: 30
-batch: 40
+batch: -1
 device: 0
 project: checkpoints
 name: yolo26m_logo
 exist_ok: true
 patience: 5
 save_period: 10
-workers: 4
+workers: 8
 cache: disk         # 65K train images → disk cache (RAM không đủ)
