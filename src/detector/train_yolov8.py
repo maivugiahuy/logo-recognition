@@ -1,6 +1,6 @@
 """
-Fine-tune YOLO26m as class-agnostic logo detector (Appendix A substitute).
-Paper used YoloV4 on proprietary PL2K; we use YOLO26m on LogoDet-3K + OpenLogo.
+Fine-tune YOLOv8m as class-agnostic logo detector (Appendix A substitute).
+Paper used YoloV4 on proprietary PL2K; we use YOLOv8m on LogoDet-3K + OpenLogo.
 """
 from pathlib import Path
 
@@ -8,7 +8,7 @@ import yaml
 from ultralytics import YOLO
 
 
-def train_detector(cfg_path: str = "configs/detector_yolo26.yaml") -> None:
+def train_detector(cfg_path: str = "configs/detector_yolov8.yaml") -> None:
     with open(cfg_path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
@@ -27,7 +27,6 @@ def train_detector(cfg_path: str = "configs/detector_yolo26.yaml") -> None:
         workers=cfg.get("workers", 4),
         cache=cfg.get("cache", False),
     )
-    # Lấy path thực từ results.save_dir (ultralytics mới có thể prepend runs/detect/)
     best_weights = Path(results.save_dir) / "weights" / "best.pt"
     print("Detector training done.")
     print(f"Best weights: {best_weights}")

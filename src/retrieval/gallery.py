@@ -221,7 +221,15 @@ def add_to_gallery(
     new_embs = np.concatenate(new_embs).astype("float32")  # (N, D)
 
     # ── Thêm vào gallery ──────────────────────────────────────────────────
-    index, labels = load_gallery(dataset_name)
+    faiss_path = GALLERY_DIR / f"{dataset_name}.faiss"
+    labels_path = GALLERY_DIR / f"{dataset_name}_labels.json"
+    if faiss_path.exists() and labels_path.exists():
+        index, labels = load_gallery(dataset_name)
+    else:
+        GALLERY_DIR.mkdir(exist_ok=True)
+        index = faiss.IndexFlatIP(embed_dim)
+        labels = []
+        print(f"  Gallery '{dataset_name}' chưa tồn tại → tạo mới.")
     index.add(new_embs)
     labels.extend([brand_name] * len(new_embs))
 

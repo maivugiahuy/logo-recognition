@@ -8,14 +8,14 @@ Reproduction of *Image-Text Pre-Training for Logo Recognition* (Hubenthal & Kuma
 |---|---|---|---|
 | ViT-B/32 embedder Phase A | ProxyNCA++ (eq 3) | Open-set train classes (~1600) | `checkpoints/vit_base.pt` |
 | ViT-B/32 embedder Phase C | ProxyNCAHN++ (eq 5) | Closed-set train classes (~1900) | `checkpoints/vit_hn.pt` |
-| YOLO26m detector | YOLO obj det loss | LogoDet-3K + OpenLogo boxes (class-agnostic) | `runs/detect/checkpoints/yolo26m_logo/weights/best.pt` |
+| YOLOv8m detector | YOLO obj det loss | LogoDet-3K + OpenLogo boxes (class-agnostic) | `runs/detect/checkpoints/yolov8_logo/weights/best.pt` |
 
 ## Substitutions vs paper
 
 | Paper original | Substitution | Reason |
 |---|---|---|
 | CLIP pretraining on 20M e-comm pairs | OpenAI pretrained ViT-B/32 weights | Table 3: OpenAI IT ≥ E-comm IT; 20M pairs unavailable |
-| YoloV4 on Amazon PL2K | YOLO26m on LogoDet-3K + OpenLogo | PL2K is proprietary |
+| YoloV4 on Amazon PL2K | YOLOv8m on LogoDet-3K + OpenLogo | PL2K is proprietary |
 | 4× V100 | 1× RTX 5060 Ti 16GB + AMP bfloat16 | Hardware |
 | OpenLogoDet3K47 composite (4 datasets) | LogoDet-3K + OpenLogo | PL2K, Flickr32, BelgaLogos không có; 2 dataset công khai |
 
@@ -200,13 +200,13 @@ Output: `checkpoints/vit_hn.pt`
 ```bash
 python scripts/05_train_detector.py
 ```
-Config: `configs/detector_yolo26.yaml`
-- YOLO26m, class-agnostic (1 class: "logo"), imgsz=512, batch=48
+Config: `configs/detector_yolov8.yaml`
+- YOLOv8m, class-agnostic (1 class: "logo"), imgsz=512, batch=48
 - 25 epochs, patience=5, cache=disk
 
-Output: `runs/detect/checkpoints/yolo26m_logo/weights/best.pt`
+Output: `runs/detect/checkpoints/yolov8_logo/weights/best.pt`
 
-> Để cải thiện AP@0.5: tăng `imgsz: 640` hoặc dùng `yolo26l.pt`.
+> Để cải thiện AP@0.5: tăng `imgsz: 640` hoặc dùng `yolov8l.pt`.
 
 ### Step 9 — Build gallery (~5–10 min)
 ```bash
@@ -289,7 +289,7 @@ data/new_classes/
 | Phase A (15 epochs, batch 512) | ~2–3 h |
 | HN mining | ~1 min |
 | Phase C (25 epochs, batch 512) | ~5 h |
-| Detector (YOLO26m) | ~3.5 h |
+| Detector (YOLOv8m) | ~3.5 h |
 | Gallery build | ~5–10 min |
 | Eval | ~10–15 min |
 | **Total** | **~12–14 h** |
@@ -328,11 +328,11 @@ data/new_classes/
 | Max epochs | 25 |
 | freeze_blocks | 0 |
 
-### Detector (`configs/detector_yolo26.yaml`)
+### Detector (`configs/detector_yolov8.yaml`)
 
 | Param | Value |
 |---|---|
-| Model | yolo26m.pt |
+| Model | yolov8m.pt |
 | imgsz | 512 |
 | batch | 48 |
 | epochs | 25 |
@@ -343,6 +343,6 @@ data/new_classes/
 
 ## Known limitations
 
-- YOLO AP@0.5 = 0.65 (gate 0.70 chưa đạt) — cần `imgsz: 640` hoặc `yolo26l.pt`
+- YOLO AP@0.5 = 0.65 (gate 0.70 chưa đạt) — cần `imgsz: 640` hoặc `yolov8l.pt`
 - `torch.compile` disabled trên Windows — mất ~15–20% speed
 - Unknown threshold (0.50) cần calibrate trên val set để tối ưu F1

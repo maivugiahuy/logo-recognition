@@ -10,10 +10,10 @@ echo Exporting inference files to: %DEST%
 
 mkdir "%DEST%\checkpoints" 2>nul
 mkdir "%DEST%\data\galleries" 2>nul
-mkdir "%DEST%\runs\detect\checkpoints\yolo26m_logo\weights" 2>nul
+mkdir "%DEST%\runs\detect\checkpoints\yolov8_logo\weights" 2>nul
 
 copy "checkpoints\vit_hn.pt"                                                "%DEST%\checkpoints\vit_hn.pt"
-copy "runs\detect\checkpoints\yolo26m_logo\weights\best.pt"                 "%DEST%\runs\detect\checkpoints\yolo26m_logo\weights\best.pt"
+copy "runs\detect\checkpoints\yolov8_logo\weights\best.pt"                  "%DEST%\runs\detect\checkpoints\yolov8_logo\weights\best.pt"
 copy "data\galleries\openlogodet3k.faiss"                                   "%DEST%\data\galleries\openlogodet3k.faiss"
 copy "data\galleries\openlogodet3k_labels.json"                             "%DEST%\data\galleries\openlogodet3k_labels.json"
 

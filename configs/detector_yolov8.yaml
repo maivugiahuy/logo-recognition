@@ -1,0 +1,15 @@
+# Class-agnostic logo detector — YOLOv8m (substitute for YoloV4/PL2K)
+model: yolov8m.pt
+data: data/processed/detector_yolo/dataset.yaml
+imgsz: 512
+epochs: 30          # giảm từ 50 → 30: đủ hội tụ với dataset này
+batch: 64           # RTX 5060 Ti 16GB: 512px × batch64 dùng ~12–13GB VRAM
+device: 0
+project: checkpoints
+name: yolov8_logo
+exist_ok: true
+patience: 5         # giảm từ 10 → 7: early stopping sớm hơn nếu không cải thiện
+save_period: 10
+workers: 4          # số dataloader workers
+cache: disk          # cache ảnh vào RAM: loại bỏ disk I/O bottleneck từ epoch 2 trở đi
+conf_thresholds: [0.4, 0.1, 0.01]
