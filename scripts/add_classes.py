@@ -107,8 +107,8 @@ if __name__ == "__main__":
                         help="Path tới YOLO weights")
     parser.add_argument("--det_conf", type=float, default=0.1,
                         help="YOLO confidence threshold (default: 0.1)")
-    parser.add_argument("--gallery", default="openlogodet3k",
-                        help="Tên gallery cần update")
+    parser.add_argument("--gallery", default="new_classes",
+                        help="Gallery to update (default: new_classes; use 'openlogodet3k' for eval gallery)")
     parser.add_argument("--embedder", default="checkpoints/vit_hn.pt")
     parser.add_argument("--on_duplicate", default="ask",
                         choices=["ask", "append", "replace", "skip"],

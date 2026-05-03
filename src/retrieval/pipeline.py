@@ -19,7 +19,7 @@ from src.detector.detect import LogoDetector
 from src.models.embedder_vit import build_vit_embedder
 from src.retrieval.gallery import load_gallery
 
-DEFAULT_DETECTOR = "runs/detect/checkpoints/yolo26m_logo/weights/best.pt"
+DEFAULT_DETECTOR = "runs/detect/checkpoints/yolo26m_logo_ft/weights/best.pt"
 DEFAULT_EMBEDDER = "checkpoints/vit_hn.pt"
 DEFAULT_GALLERY = "openlogodet3k"
 

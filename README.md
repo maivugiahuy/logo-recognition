@@ -129,7 +129,7 @@ python -c "import torch; print(torch.cuda.is_available())"
 | Dataset | Size | Download | Destination |
 |---|---|---|---|
 | LogoDet-3K | ~3 GB | [Kaggle](https://www.kaggle.com/datasets/lyly99/logodet3k) | `data/raw/LogoDet-3K/` |
-| OpenLogo | ~2 GB | [GitHub](https://github.com/hang21/OpenLogo) | `data/raw/openlogo/` |
+| OpenLogo | ~2 GB | [GitHub](https://hangsu0730.github.io/qmul-openlogo/) | `data/raw/openlogo/` |
 
 LogoDet-3K cấu trúc: `LogoDet-3K/{category}/{ClassName}/{id}.jpg` + `{id}.xml`
 
@@ -223,8 +223,11 @@ python scripts/07_eval.py
 
 ### Step 11 — Demo
 ```bash
-# Inference trên ảnh bất kỳ
+# Eval gallery (openlogodet3k — 2400+ classes, mặc định)
 python scripts/08_demo.py your_image.jpg --save_dir results/
+
+# New-classes gallery (brands thêm qua add_classes.py)
+python scripts/08_demo.py your_image.jpg --gallery new_classes --save_dir results/
 
 # Với unknown threshold tùy chỉnh (mặc định 0.50)
 python scripts/08_demo.py your_image.jpg --unknown_threshold 0.65 --save_dir results/
@@ -243,15 +246,23 @@ python scripts/list_classes.py --out my_classes.txt
 ```
 
 ### Step 12 — Thêm class mới vào gallery (không cần train lại)
+
+Classes được thêm vào gallery `new_classes` (tách biệt với eval gallery `openlogodet3k`).
+Dùng `--gallery openlogodet3k` để thêm trực tiếp vào eval gallery.
+
 ```bash
-# Thêm từ data/new_classes/ (mỗi subfolder = 1 class)
+# Thêm từ data/new_classes/ (mỗi subfolder = 1 class) → gallery new_classes
 python scripts/add_classes.py [--use_detector]
 
 # Chỉ định folder_root khác
 python scripts/add_classes.py --folder_root path/to/brands/
 
+# Thêm vào eval gallery thay vì new_classes
+python scripts/add_classes.py --gallery openlogodet3k
+
 # Xem danh sách classes trong gallery
 python scripts/add_classes.py --list
+python scripts/add_classes.py --list --gallery openlogodet3k
 
 # Xóa class khỏi gallery
 python scripts/add_classes.py --remove nike

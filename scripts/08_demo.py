@@ -1,7 +1,8 @@
 """
 Step 11: End-to-end demo — input image(s) → brand labels with bounding boxes.
 Usage: python scripts/08_demo.py path/to/image.jpg [path/to/image2.jpg ...]
-       python scripts/08_demo.py --gallery openlogodet3k --conf 0.1
+       python scripts/08_demo.py --gallery openlogodet3k --conf 0.1   # eval gallery
+       python scripts/08_demo.py --gallery new_classes --conf 0.1     # user-added classes
 """
 import argparse
 import sys
@@ -34,7 +35,8 @@ if __name__ == "__main__":
     parser.add_argument("images", nargs="+", help="Image paths")
     parser.add_argument("--detector", default="runs/detect/checkpoints/yolo26m_logo/weights/best.pt")
     parser.add_argument("--embedder", default="checkpoints/vit_hn.pt")
-    parser.add_argument("--gallery", default="openlogodet3k")
+    parser.add_argument("--gallery", default="openlogodet3k",
+                        help="Gallery name: 'openlogodet3k' (eval, default) or 'new_classes' (user-added via add_classes.py)")
     parser.add_argument("--conf", type=float, default=0.1)
     parser.add_argument("--unknown_threshold", type=float, default=0.50,
                         help="Cosine similarity threshold below which logo is 'unknown' (default: 0.50)")
