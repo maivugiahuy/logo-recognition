@@ -8,15 +8,15 @@
 model: runs/detect/checkpoints/yolo26m_logo/weights/best.pt
 data: data/processed/detector_yolo/dataset.yaml
 imgsz: 640
-epochs: 20              # ngắn hơn 50 vì đã có base tốt (0.653)
-batch: -1               # auto-batch fit VRAM
+epochs: 15              # ngắn hơn 50 vì đã có base tốt (0.653)
+batch: 27
 device: 0
 project: checkpoints
 name: yolo26m_logo_ft
 exist_ok: true
-patience: 10            # dừng sớm nếu không cải thiện
+patience: 5             # dừng sớm nếu không cải thiện
 save_period: 5
-workers: 8
+workers: 6
 cache: disk
 
 # LR schedule

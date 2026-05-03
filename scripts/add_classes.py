@@ -5,19 +5,19 @@ Mỗi subfolder trong folder_root = 1 class (tên subfolder = tên class).
 
 Usage:
     # Chạy từ data/new_classes/ (mặc định)
-    python scripts/add_class.py
+    python scripts/add_classes.py
 
     # Chỉ định folder_root khác
-    python scripts/add_class.py --folder_root path/to/brands/
+    python scripts/add_classes.py --folder_root path/to/brands/
 
     # Dùng YOLO detect logo tự động
-    python scripts/add_class.py [--use_detector]
+    python scripts/add_classes.py [--use_detector]
 
     # Xem classes trong gallery
-    python scripts/add_class.py --list
+    python scripts/add_classes.py --list
 
     # Xóa class khỏi gallery
-    python scripts/add_class.py --remove pepsi
+    python scripts/add_classes.py --remove pepsi
 """
 import argparse
 import json

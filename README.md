@@ -245,16 +245,16 @@ python scripts/list_classes.py --out my_classes.txt
 ### Step 12 — Thêm class mới vào gallery (không cần train lại)
 ```bash
 # Thêm từ data/new_classes/ (mỗi subfolder = 1 class)
-python scripts/add_class.py [--use_detector]
+python scripts/add_classes.py [--use_detector]
 
 # Chỉ định folder_root khác
-python scripts/add_class.py --folder_root path/to/brands/
+python scripts/add_classes.py --folder_root path/to/brands/
 
 # Xem danh sách classes trong gallery
-python scripts/add_class.py --list
+python scripts/add_classes.py --list
 
 # Xóa class khỏi gallery
-python scripts/add_class.py --remove nike
+python scripts/add_classes.py --remove nike
 ```
 
 Cấu trúc `data/new_classes/`:

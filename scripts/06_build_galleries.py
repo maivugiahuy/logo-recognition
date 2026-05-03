@@ -19,7 +19,6 @@ def _ensure_per_ds_parquet(name: str, parquet_path: str) -> None:
     if p.exists():
         return
     df = pd.read_parquet(ANN)
-    df = df[df["source"] == name]
     p.parent.mkdir(exist_ok=True)
     df.to_parquet(p, index=False)
     print(f"  Created {p} ({len(df)} objects)")
