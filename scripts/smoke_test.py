@@ -20,7 +20,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.data.dataset import OLG3K47Dataset
+from src.data.dataset import LogoDataset
 from src.data.samplers import MPerClassSampler
 from src.data.transforms import train_transforms, val_transforms
 from src.losses.proxynca_pp import ProxyNCAPPLoss
@@ -62,10 +62,10 @@ def main():
         with open(smoke_val, "w") as f:
             json.dump(smoke_cls[40:], f)
 
-        train_ds = OLG3K47Dataset.from_split(
+        train_ds = LogoDataset.from_split(
             ANN, smoke_train, transform=train_transforms(INPUT_SIZE), mode="open_set"
         )
-        val_ds = OLG3K47Dataset.from_split(
+        val_ds = LogoDataset.from_split(
             ANN, smoke_val, transform=val_transforms(INPUT_SIZE), mode="open_set"
         )
 

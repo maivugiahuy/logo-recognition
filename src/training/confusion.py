@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.data.dataset import OLG3K47Dataset
+from src.data.dataset import LogoDataset
 from src.data.transforms import val_transforms
 from src.models.embedder_vit import build_vit_embedder
 from src.models.proxy_head import ProxyHead
@@ -38,7 +38,7 @@ def build_confusion_matrix(
     num_classes = state["proxy"]["proxies"].shape[0]
 
     # Use open-set train split — same classes the Phase A model was trained on
-    train_ds = OLG3K47Dataset.from_split(
+    train_ds = LogoDataset.from_split(
         ANN, SPLITS / "open_train.json",
         transform=val_transforms(input_size), mode="open_set",
     )

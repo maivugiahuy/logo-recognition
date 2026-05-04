@@ -21,7 +21,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.data.dataset import OLG3K47Dataset
+from src.data.dataset import LogoDataset
 from src.data.transforms import val_transforms
 from src.models.embedder_vit import build_vit_embedder
 
@@ -31,7 +31,7 @@ SEED = 42
 
 
 def _embed_dataset(
-    ds: OLG3K47Dataset,
+    ds: LogoDataset,
     embedder: torch.nn.Module,
     device: torch.device,
     batch_size: int = 256,
@@ -124,7 +124,7 @@ def evaluate(
     embedder.load_state_dict(state["embedder"])
     embedder.eval()
 
-    ds = OLG3K47Dataset.from_split(
+    ds = LogoDataset.from_split(
         ann_parquet, split_json, transform=val_transforms(input_size), mode=mode
     )
     embs, class_names, min_sides = _embed_dataset(ds, embedder, device)

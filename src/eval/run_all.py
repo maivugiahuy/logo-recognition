@@ -14,7 +14,7 @@ CKPT = "checkpoints/vit_hn.pt"
 
 
 EVAL_CONFIGS = {
-    "openlogodet3k": {
+    "openlogodet3k_closedset": {
         "parquet": ANN_BASE / "openlogodet3k_test.parquet",
         "split": None,  # test split parquet covers just test images
         "mode": "closed_set",
@@ -118,8 +118,9 @@ def run_all(ckpt_path: str = CKPT) -> dict:
         row.update(res)
         rows.append(row)
     df = pd.DataFrame(rows)
-    df.to_csv("eval_results.csv", index=False)
-    print(f"\nSaved → eval_results.csv")
+    Path("results").mkdir(exist_ok=True)
+    df.to_csv("results/eval_results.csv", index=False)
+    print(f"\nSaved → results/eval_results.csv")
     return all_results
 
 

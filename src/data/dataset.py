@@ -1,4 +1,4 @@
-"""OLG3K47Dataset: crops bboxes from images, returns (tensor, class_idx)."""
+"""LogoDataset: crops bboxes from images, returns (tensor, class_idx)."""
 import json
 from pathlib import Path
 
@@ -8,7 +8,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 
-class OLG3K47Dataset(Dataset):
+class LogoDataset(Dataset):
     def __init__(
         self,
         annotations: pd.DataFrame,
@@ -26,7 +26,7 @@ class OLG3K47Dataset(Dataset):
         split_json: str | Path,
         transform=None,
         mode: str = "open_set",
-    ) -> "OLG3K47Dataset":
+    ) -> "LogoDataset":
         """
         mode='open_set': split_json is a list of class names (train/val/test classes).
         mode='closed_set': split_json is {class: [image_paths]} dict.

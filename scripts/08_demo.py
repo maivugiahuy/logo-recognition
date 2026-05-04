@@ -32,12 +32,15 @@ def _brand_color(brand: str) -> str:
 def draw_results(image_path: str, results: list[dict], out_path: str | None = None) -> None:
     img = Image.open(image_path).convert("RGB")
     draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("arial.ttf", size=24)
+    except Exception:
+        font = ImageFont.load_default(size=24)
     for r in results:
         b = r["box"]
         color = _UNKNOWN_COLOR if r.get("is_unknown") else _brand_color(r["brand"])
         draw.rectangle([b["x1"], b["y1"], b["x2"], b["y2"]], outline=color, width=3)
-        label = f"{r['brand']} (det:{b['conf']:.2f} sim:{r['score']:.2f})"
-        draw.text((b["x1"], max(0, b["y1"] - 15)), label, fill=color)
+        draw.text((b["x1"], max(0, b["y1"] - 28)), r["brand"], fill=color, font=font)
     if out_path:
         img.save(out_path)
         print(f"  Saved → {out_path}")

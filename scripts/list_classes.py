@@ -5,7 +5,7 @@ Mỗi dòng: class_name | n_objects | n_images
 Đọc từ data/processed/openlogodet3k/annotations.parquet (sau Step 3).
 
 Usage:
-    python scripts/list_classes.py                  # → classes.txt
+    python scripts/list_classes.py                  # → results/classes.txt
     python scripts/list_classes.py --out my.txt     # output tùy chỉnh
 """
 import argparse
@@ -19,8 +19,8 @@ ANN = Path("data/processed/openlogodet3k/annotations.parquet")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out", default="classes.txt",
-                        help="Output file path (default: classes.txt)")
+    parser.add_argument("--out", default="results/classes.txt",
+                        help="Output file path (default: results/classes.txt)")
     args = parser.parse_args()
 
     import pandas as pd

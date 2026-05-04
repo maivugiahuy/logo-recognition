@@ -12,4 +12,3 @@ patience: 5         # giảm từ 10 → 7: early stopping sớm hơn nếu khô
 save_period: 10
 workers: 4          # số dataloader workers
 cache: disk          # cache ảnh vào RAM: loại bỏ disk I/O bottleneck từ epoch 2 trở đi
-conf_thresholds: [0.4, 0.1, 0.01]

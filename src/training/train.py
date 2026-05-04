@@ -16,7 +16,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.data.dataset import OLG3K47Dataset
+from src.data.dataset import LogoDataset
 from src.data.samplers import (
     HardNegativeBatchSampler,
     MPerClassSampler,
@@ -69,11 +69,11 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
     split_prefix = "open" if mode == "open_set" else "closed"
 
     # ── Datasets ──────────────────────────────────────────────────────────
-    train_ds = OLG3K47Dataset.from_split(
+    train_ds = LogoDataset.from_split(
         ANN, SPLITS / f"{split_prefix}_train.json",
         transform=train_transforms(cfg["input_size"]), mode=mode,
     )
-    val_ds = OLG3K47Dataset.from_split(
+    val_ds = LogoDataset.from_split(
         ANN, SPLITS / f"{split_prefix}_val.json",
         transform=val_transforms(cfg["input_size"]), mode=mode,
     )
