@@ -3,6 +3,7 @@ Step 11: End-to-end demo — input image(s) → brand labels with bounding boxes
 Usage: python scripts/08_demo.py path/to/image.jpg [path/to/image2.jpg ...]
        python scripts/08_demo.py --gallery openlogodet3k --conf 0.1   # eval gallery
        python scripts/08_demo.py --gallery new_classes --conf 0.1     # user-added classes
+       python scripts/08_demo.py img.jpg --save_crops                 # save cropped logos
 """
 import argparse
 import sys
@@ -40,7 +41,12 @@ def draw_results(image_path: str, results: list[dict], out_path: str | None = No
         b = r["box"]
         color = _UNKNOWN_COLOR if r.get("is_unknown") else _brand_color(r["brand"])
         draw.rectangle([b["x1"], b["y1"], b["x2"], b["y2"]], outline=color, width=3)
-        draw.text((b["x1"], max(0, b["y1"] - 28)), r["brand"], fill=color, font=font)
+        label = r["brand"]
+        bbox = font.getbbox(label)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        tx, ty = int(b["x1"]), max(0, int(b["y1"]) - th - 6)
+        draw.rectangle([tx, ty, tx + tw + 6, ty + th + 6], fill=color)
+        draw.text((tx + 3, ty + 3), label, fill="white", font=font)
     if out_path:
         img.save(out_path)
         print(f"  Saved → {out_path}")
@@ -59,6 +65,8 @@ if __name__ == "__main__":
     parser.add_argument("--unknown_threshold", type=float, default=0.50,
                         help="Cosine similarity threshold below which logo is 'unknown' (default: 0.50)")
     parser.add_argument("--save_dir", default=None)
+    parser.add_argument("--save_crops", action="store_true",
+                        help="Save each detected logo crop as a separate image")
     args = parser.parse_args()
 
     print("Loading pipeline...")
@@ -81,6 +89,21 @@ if __name__ == "__main__":
             status = "UNKNOWN" if r["is_unknown"] else r["brand"]
             print(f"  box [{b['x1']:.0f},{b['y1']:.0f},{b['x2']:.0f},{b['y2']:.0f}] "
                   f"det:{b['conf']:.4f}  → brand: {status}  sim:{r['score']:.4f}")
+
+        if args.save_crops:
+            crop_dir = Path(args.save_dir) if args.save_dir else Path("results/crops")
+            crop_dir.mkdir(parents=True, exist_ok=True)
+            img_orig = Image.open(img_path).convert("RGB")
+            stem = Path(img_path).stem
+            for i, r in enumerate(results):
+                b = r["box"]
+                x1, y1 = max(0, int(b["x1"])), max(0, int(b["y1"]))
+                x2, y2 = min(img_orig.width, int(b["x2"])), min(img_orig.height, int(b["y2"]))
+                crop = img_orig.crop((x1, y1, x2, y2))
+                brand = r["brand"].replace("/", "_")
+                crop_path = crop_dir / f"{stem}_{i:02d}_{brand}.jpg"
+                crop.save(crop_path)
+                print(f"  Crop saved → {crop_path}")
 
         if args.save_dir:
             out = Path(args.save_dir) / (Path(img_path).stem + "_result.jpg")
