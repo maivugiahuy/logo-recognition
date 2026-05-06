@@ -47,92 +47,65 @@
 
 ## Execution steps
 
-### Step 0 — Fresh Windows setup
+### Step 0 — One-time setup
 
-#### 0.1 — Check GPU
-```cmd
-nvidia-smi
-```
-If not found → install NVIDIA driver first (step 0.2).
+Skip if environment already configured.
 
-#### 0.2 — Install NVIDIA driver + CUDA Toolkit
-RTX 5060 Ti (Blackwell) requires CUDA 12.8+.
-1. Download driver: https://www.nvidia.com/Download/index.aspx
-2. Download CUDA 12.8 Toolkit: https://developer.nvidia.com/cuda-12-8-0-download-archive
-   - Select: Windows → x86_64 → 11 → exe (local)
-3. Reboot → verify: `nvidia-smi` shows GPU + CUDA 12.8
+#### 0.1 — Install prerequisites
+| Tool | Link | Notes |
+|---|---|---|
+| NVIDIA driver + CUDA 12.8 | https://developer.nvidia.com/cuda-12-8-0-download-archive | Windows → x86_64 → 11 → exe (local); reboot after |
+| Git | https://git-scm.com/download/win | Install with defaults |
+| Python 3.11 (64-bit) | https://www.python.org/downloads/release/python-3119/ | Check **"Add python.exe to PATH"** |
+| VS Build Tools | https://visualstudio.microsoft.com/visual-cpp-build-tools/ | Select **"Desktop development with C++"** |
 
-#### 0.3 — Install Git
-https://git-scm.com/download/win → install with defaults.
+Verify GPU: `nvidia-smi`
 
-#### 0.4 — Install Python 3.11
-https://www.python.org/downloads/release/python-3119/
-- Pick **Windows installer (64-bit)**
-- **Check "Add python.exe to PATH"** before installing
-
-#### 0.5 — Install VS Build Tools
-https://visualstudio.microsoft.com/visual-cpp-build-tools/
-- Select **"Desktop development with C++"** workload
-
-#### 0.6 — Clone repo + create venv
+#### 0.2 — Clone repo and install dependencies
 ```cmd
 git clone https://github.com/maivugiahuy/logo-recognition "C:\Logo Recognition"
 cd "C:\Logo Recognition"
 python -m venv .venv
 .venv\Scripts\activate
 python -m pip install --upgrade pip
-```
-
-#### 0.7 — Install PyTorch (CUDA 12.8)
-```cmd
 pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
-python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
-```
-Must print `True 12.8`.
-
-#### 0.8 — Install project dependencies
-```cmd
 pip install -r requirements.txt
 ```
 
-#### 0.9 — Verify
+Verify:
 ```cmd
+python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
 python -c "import torch, open_clip, faiss, ultralytics, pandas; print('OK')"
 ```
 
-> **Note:** Keep `data/`, `checkpoints/`, `data/galleries/` on a large disk (≥100 GB free).
-
----
-
-### Step 1 — Activate environment
+#### 0.3 — Activate environment (every session)
 ```cmd
 cd "C:\Logo Recognition"
 .venv\Scripts\activate
-python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-### Step 2 — Download datasets (manual)
+#### 0.4 — Download datasets (manual, one-time)
 
 | Dataset | Size | Download | Destination |
 |---|---|---|---|
 | LogoDet-3K | ~3 GB | [Kaggle](https://www.kaggle.com/datasets/lyly99/logodet3k) | `data/raw/LogoDet-3K/` |
 | OpenLogo | ~2 GB | [GitHub](https://hangsu0730.github.io/qmul-openlogo/) | `data/raw/openlogo/` |
 
-LogoDet-3K layout: `LogoDet-3K/{category}/{ClassName}/{id}.jpg` + `{id}.xml`
-
-OpenLogo layout:
+Expected layouts:
 ```
-data/raw/openlogo/
-  Annotations/   ← *.xml (Pascal VOC)
-  JPEGImages/    ← *.jpg
-  ImageSets/
+data/raw/LogoDet-3K/{category}/{ClassName}/{id}.jpg + {id}.xml
+data/raw/openlogo/Annotations/*.xml  JPEGImages/*.jpg  ImageSets/
 ```
 
-### Step 3 — Build dataset (~45–60 min)
+> Keep `data/`, `checkpoints/`, `data/galleries/` on a disk with ≥100 GB free.
+
+---
+
+### Step 1 — Build dataset
 ```bash
 python scripts/01_build_dataset.py
 ```
-Parse LogoDet-3K + OpenLogo → normalize → dedup → filter → build splits.
+Parses both datasets, normalizes bboxes, deduplicates, builds splits.
 
 Output: `data/processed/openlogodet3k/annotations.parquet` + `data/processed/openlogodet3k/splits/`
 
@@ -142,128 +115,103 @@ Output: `data/processed/openlogodet3k/annotations.parquet` + `data/processed/ope
 | OpenLogo | ~355 | ~27k |
 | **Combined** | **~2400+** | **~125k+** |
 
-Splits:
-- `open_train.json` — ~1600 classes (Phase A)
-- `open_val.json` — ~400 classes
-- `open_test.json` — ~500 classes
-- `closed_train/val/test.json` — image-level splits on seen classes
+Splits: `open_train.json` (~1600 classes, Phase A), `open_val/test.json`, `closed_train/val/test.json`.
 
-### Step 4 — Smoke test (~5–10 min)
+### Step 2 — Smoke test
 ```bash
 python scripts/02_smoke_test.py
 ```
-Gate: loss decreasing. Recall@1 = 0.0 at start is normal.
+Verifies loss decreases over a few batches. Recall@1 = 0.0 at start is expected.
 
-### Step 5 — Phase A: base ViT (~2–3 h)
+### Step 3 — Phase A: base ViT embedder
 ```bash
 python scripts/03_train_base.py --config configs/base_vit.yaml
 ```
-- LR: trunk 2.3e-6, FC 1.5e-3, proxy 71
-- Batch 512 (k=64 × m=8), max 15 epochs, early stopping patience 6, σ=0.06
-- freeze_blocks=0, AMP bfloat16, num_workers=8
-- VRAM: ~9GB
+ProxyNCA++ on ~1600 open-set classes. Batch 512 (k=64 × m=8), max 15 epochs, AMP bfloat16, ~9 GB VRAM.
 
 Output: `checkpoints/vit_base.pt`
 
-### Step 6 — Hard-negative mining (~1 min)
+### Step 4 — Hard-negative mining
 ```bash
 python scripts/04_mine_hn.py --ckpt checkpoints/vit_base.pt --config configs/base_vit.yaml
 ```
-- h(yi) = {yj : 0.05 ≤ C[i,j] ≤ 0.35 AND levenshtein(name_i, name_j) > 2}
-- Output: `data/processed/hn_map.json`
+Finds hard-negative pairs: confusion similarity 0.05–0.35, Levenshtein distance > 2.
 
-### Step 7 — Phase C: ProxyNCAHN++ (~5 h)
+Output: `data/processed/hn_map.json`
+
+### Step 5 — Phase C: fine-tune with hard negatives
 ```bash
 python scripts/05_train_hn.py --config configs/hn_vit.yaml
 ```
-- Init from `checkpoints/vit_base.pt`
-- Closed-set, max 25 epochs, early stopping patience 6
-- Batch 512 (k=64 × m=8), freeze_blocks=0
-- VRAM: ~15GB
+ProxyNCAHN++ on ~1900 closed-set classes. Init from `vit_base.pt`, max 25 epochs, ~15 GB VRAM.
 
 Output: `checkpoints/vit_hn.pt`
 
-### Step 8 — Logo detector (~3.5 h)
+### Step 6 — Train logo detector
 ```bash
 python scripts/06_train_detector.py
 ```
-Config: `configs/detector_yolov8.yaml`
-- YOLOv8m, class-agnostic (1 class: "logo"), imgsz=512, batch=48
-- 25 epochs, patience=5, cache=disk
+YOLOv8m, class-agnostic (1 class: "logo"), imgsz=512, batch=48, 25 epochs.
 
 Output: `runs/detect/checkpoints/yolov8_logo/weights/best.pt`
 
-> To improve AP@0.5: increase `imgsz: 640` or use `yolov8l.pt`.
+> To improve AP@0.5: set `imgsz: 640` or switch to `yolov8l.pt` in `configs/detector_yolov8.yaml`.
 
-### Step 9 — Build gallery (~5–10 min)
-```bash
-python scripts/08_build_galleries.py
-```
-Output: `data/galleries/openlogodet3k.faiss` + `data/galleries/openlogodet3k_labels.json`
-
-> Required before running demo. Not needed for eval.
-
-### Step 10 — Evaluation (~10–15 min)
+### Step 7 — Evaluate embedder
 ```bash
 python scripts/07_eval.py
 ```
+Output: `results/eval_results.csv`
 
-### Step 11 — Demo
+### Step 8 — Build gallery
 ```bash
-# Eval gallery (openlogodet3k — 2400+ classes, default)
-python scripts/10_demo.py your_image.jpg --save_dir results/
-
-# New-classes gallery (brands added via 09_add_classes.py)
-python scripts/10_demo.py your_image.jpg --gallery new_classes --save_dir results/
-
-# Custom unknown threshold (default 0.50)
-python scripts/10_demo.py your_image.jpg --unknown_threshold 0.65 --save_dir results/
+python scripts/08_build_galleries.py
 ```
-Pipeline: YOLO26 detect → crop 160×160 → ViT embed → FAISS top-1 → class label
-- Box **red** = recognized class (score ≥ threshold)
-- Box **orange** = unknown (score < threshold)
+Embeds all reference crops into a FAISS index.
 
-### Step 11b — List classes
+Output: `data/galleries/openlogodet3k.faiss` + `data/galleries/openlogodet3k_labels.json`
+
+### Step 9 — Add new classes (no retraining)
+
+Place logo images in `data/new_classes/{class_name}/`, then:
 ```bash
-# Export classes.txt (class_name | n_objects | n_images)
-python scripts/list_classes.py
+# Add all subfolders → new_classes gallery
+python scripts/09_add_classes.py
 
-# Custom output path
-python scripts/list_classes.py --out my_classes.txt
-```
+# Use YOLO to crop logos before embedding
+python scripts/09_add_classes.py --use_detector
 
-### Step 12 — Add new classes to gallery (no retraining needed)
-
-Classes are added to the `new_classes` gallery (separate from the eval gallery `openlogodet3k`).
-Use `--gallery openlogodet3k` to add directly into the eval gallery.
-
-```bash
-# Add from data/new_classes/ (each subfolder = 1 class) → new_classes gallery
-python scripts/09_add_classes.py [--use_detector]
-
-# Specify a different folder_root
-python scripts/09_add_classes.py --folder_root path/to/brands/
-
-# Add into eval gallery instead of new_classes
+# Add into eval gallery instead
 python scripts/09_add_classes.py --gallery openlogodet3k
 
-# List classes in gallery
+# List / remove
 python scripts/09_add_classes.py --list
-python scripts/09_add_classes.py --list --gallery openlogodet3k
-
-# Remove a class from gallery
 python scripts/09_add_classes.py --remove nike
 ```
 
-`data/new_classes/` layout:
-```
-data/new_classes/
-  nike/       ← Nike logo images
-  adidas/     ← Adidas logo images
-  ...
-```
-
 `--on_duplicate`: `ask` (default) / `append` / `replace` / `skip`
+
+### Step 10 — Demo
+```bash
+# Default gallery (openlogodet3k — 2400+ classes)
+python scripts/10_demo.py your_image.jpg --save_dir results/
+
+# User-added classes gallery
+python scripts/10_demo.py your_image.jpg --gallery new_classes --save_dir results/
+
+# Adjust unknown threshold (default 0.50)
+python scripts/10_demo.py your_image.jpg --unknown_threshold 0.65 --save_dir results/
+```
+Pipeline: YOLO detect → crop 160×160 → ViT embed → FAISS top-1 → label
+- Box **red** = recognized (score ≥ threshold)
+- Box **orange** = unknown (score < threshold)
+
+### Utility — List training classes
+```bash
+python scripts/list_classes.py              # → results/classes.txt
+python scripts/list_classes.py --out my.txt
+```
+Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per line.
 
 ---
 
