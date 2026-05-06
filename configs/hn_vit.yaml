@@ -1,4 +1,4 @@
-# Phase C: closed-set ViT-B/32 + ProxyNCAHN++ (Table 4)
+# Phase C: closed-set ViT-B/32 + ProxyNCAHN++
 mode: closed_set
 backbone: vit_b32_openai
 input_size: 160
@@ -23,7 +23,7 @@ scheduler:
   patience: 2
   factor: 0.25
 
-early_stopping_patience: 5  # dừng hẳn nếu không cải thiện sau 6 epochs
+early_stopping_patience: 5  # stop if no improvement after 5 epochs
 
 training:
   epochs: 30
@@ -32,10 +32,10 @@ training:
   m: 8              # images per class
 
 amp: true
-compile: false      # torch.compile không chạy trên Windows (Triton missing)
+compile: false      # torch.compile disabled on Windows (Triton not supported)
 num_workers: 8
 persistent_workers: true
-freeze_blocks: 0    # unfreeze toàn bộ 12 blocks
+freeze_blocks: 0    # unfreeze all 12 blocks
 
 loss:
   sigma: 0.06

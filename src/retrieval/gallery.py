@@ -109,8 +109,8 @@ def load_gallery(dataset_name: str) -> tuple[faiss.Index, list[str]]:
 
 def check_duplicate(brand_name: str, dataset_name: str = "openlogodet3k") -> int:
     """
-    Kiểm tra brand đã tồn tại trong gallery chưa.
-    Trả về số lượng ảnh hiện có (0 = chưa có).
+    Check if a brand already exists in the gallery.
+    Returns the number of existing images (0 = not present).
     """
     labels_path = GALLERY_DIR / f"{dataset_name}_labels.json"
     if not labels_path.exists():
@@ -122,9 +122,9 @@ def check_duplicate(brand_name: str, dataset_name: str = "openlogodet3k") -> int
 
 def remove_from_gallery(brand_name: str, dataset_name: str = "openlogodet3k") -> int:
     """
-    Xóa toàn bộ vectors của brand khỏi gallery.
-    Trả về số vectors đã xóa.
-    FAISS IndexFlatIP không hỗ trợ xóa trực tiếp → rebuild index không có brand đó.
+    Remove all vectors for a brand from the gallery.
+    Returns the number of vectors removed.
+    FAISS IndexFlatIP does not support direct deletion → rebuilds the index without that brand.
     """
     index, labels = load_gallery(dataset_name)
 
@@ -132,10 +132,10 @@ def remove_from_gallery(brand_name: str, dataset_name: str = "openlogodet3k") ->
     n_removed = len(labels) - len(keep_indices)
 
     if n_removed == 0:
-        print(f"Brand '{brand_name}' không có trong gallery.")
+        print(f"Brand '{brand_name}' not found in gallery.")
         return 0
 
-    # Lấy embeddings của các entry cần giữ
+    # Extract embeddings for entries to keep
     all_embs = np.zeros((index.ntotal, index.d), dtype="float32")
     index.reconstruct_n(0, index.ntotal, all_embs)
     kept_embs = all_embs[keep_indices]
@@ -150,8 +150,8 @@ def remove_from_gallery(brand_name: str, dataset_name: str = "openlogodet3k") ->
     with open(GALLERY_DIR / f"{dataset_name}_labels.json", "w") as f:
         json.dump(new_labels, f)
 
-    print(f"Đã xóa brand '{brand_name}' ({n_removed} vectors) khỏi gallery '{dataset_name}'")
-    print(f"Gallery còn lại: {new_index.ntotal} vectors")
+    print(f"Removed brand '{brand_name}' ({n_removed} vectors) from gallery '{dataset_name}'")
+    print(f"Gallery remaining: {new_index.ntotal} vectors")
     return n_removed
 
 
@@ -166,31 +166,31 @@ def add_to_gallery(
     on_duplicate: str = "append",  # "append" | "replace" | "skip"
 ) -> None:
     """
-    Thêm brand vào gallery hiện có mà không cần build lại từ đầu.
+    Add a brand to an existing gallery without rebuilding from scratch.
 
     Args:
-        image_paths:  danh sách ảnh chứa logo của brand
-        brand_name:   tên brand (label sẽ dùng khi retrieve)
-        dataset_name: gallery cần update
-        crop_box:     (x1, y1, x2, y2) nếu muốn crop logo từ ảnh, None = dùng toàn ảnh
-        on_duplicate: xử lý khi brand đã tồn tại:
-                        "append"  — thêm ảnh mới vào bên cạnh ảnh cũ (mặc định)
-                        "replace" — xóa ảnh cũ, thêm ảnh mới
-                        "skip"    — bỏ qua, không làm gì
+        image_paths:  list of images containing the brand logo
+        brand_name:   brand name (label used during retrieval)
+        dataset_name: gallery to update
+        crop_box:     (x1, y1, x2, y2) to crop logo from image, None = use full image
+        on_duplicate: how to handle an existing brand:
+                        "append"  — add new images alongside existing ones (default)
+                        "replace" — remove existing images, add new ones
+                        "skip"    — do nothing
     """
-    # ── Kiểm tra trùng ────────────────────────────────────────────────────
+    # ── Duplicate check ───────────────────────────────────────────────────
     existing_count = check_duplicate(brand_name, dataset_name)
     if existing_count > 0:
         if on_duplicate == "skip":
-            print(f"  [SKIP] Brand '{brand_name}' đã có {existing_count} ảnh trong gallery.")
+            print(f"  [SKIP] Brand '{brand_name}' already has {existing_count} images in gallery.")
             return
         elif on_duplicate == "replace":
-            print(f"  [REPLACE] Brand '{brand_name}' đã có {existing_count} ảnh → xóa và thêm lại.")
+            print(f"  [REPLACE] Brand '{brand_name}' has {existing_count} existing images → removing and re-adding.")
             remove_from_gallery(brand_name, dataset_name)
         else:  # append
-            print(f"  [APPEND] Brand '{brand_name}' đã có {existing_count} ảnh → thêm ảnh mới vào.")
+            print(f"  [APPEND] Brand '{brand_name}' has {existing_count} existing images → appending new ones.")
 
-    # ── Embed ảnh mới ─────────────────────────────────────────────────────
+    # ── Embed new images ──────────────────────────────────────────────────
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
     state = torch.load(ckpt_path, map_location=device)
@@ -212,15 +212,15 @@ def add_to_gallery(
                 emb = embedder(tensor).cpu().numpy()  # (1, D)
             new_embs.append(emb)
         except Exception as e:
-            print(f"  [WARN] Bỏ qua {img_path}: {e}")
+            print(f"  [WARN] Skipping {img_path}: {e}")
 
     if not new_embs:
-        print("Không có ảnh hợp lệ, bỏ qua.")
+        print("No valid images found, skipping.")
         return
 
     new_embs = np.concatenate(new_embs).astype("float32")  # (N, D)
 
-    # ── Thêm vào gallery ──────────────────────────────────────────────────
+    # ── Add to gallery ────────────────────────────────────────────────────
     faiss_path = GALLERY_DIR / f"{dataset_name}.faiss"
     labels_path = GALLERY_DIR / f"{dataset_name}_labels.json"
     if faiss_path.exists() and labels_path.exists():
@@ -229,7 +229,7 @@ def add_to_gallery(
         GALLERY_DIR.mkdir(exist_ok=True)
         index = faiss.IndexFlatIP(embed_dim)
         labels = []
-        print(f"  Gallery '{dataset_name}' chưa tồn tại → tạo mới.")
+        print(f"  Gallery '{dataset_name}' does not exist → creating new.")
     index.add(new_embs)
     labels.extend([brand_name] * len(new_embs))
 
@@ -237,5 +237,5 @@ def add_to_gallery(
     with open(GALLERY_DIR / f"{dataset_name}_labels.json", "w") as f:
         json.dump(labels, f)
 
-    print(f"Đã thêm brand '{brand_name}' ({len(new_embs)} ảnh) → gallery '{dataset_name}'")
-    print(f"Gallery mới: {index.ntotal} vectors total")
+    print(f"Added brand '{brand_name}' ({len(new_embs)} images) → gallery '{dataset_name}'")
+    print(f"Gallery updated: {index.ntotal} vectors total")

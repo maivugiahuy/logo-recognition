@@ -27,6 +27,7 @@ from src.losses.proxynca_pp import ProxyNCAPPLoss
 from src.models.embedder_vit import build_vit_embedder
 from src.models.proxy_head import ProxyHead
 from src.training.optim import build_optimizer
+from src.utils.logging_utils import setup_logging
 
 ANN = Path("data/processed/openlogodet3k/annotations.parquet")
 SPLITS = Path("data/processed/openlogodet3k/splits")
@@ -78,7 +79,7 @@ def main():
 
     embedder = build_vit_embedder(EMBED_DIM, INPUT_SIZE, freeze_blocks=0).to(device)
     proxy_head = ProxyHead(train_ds.num_classes, EMBED_DIM).to(device)
-    # BUG FIX: proxy init dùng loader không có sampler để thấy toàn bộ training data
+    # proxy init uses a loader without sampler to see the full training set
     init_loader = DataLoader(train_ds, batch_size=64, shuffle=False, num_workers=0)
     proxy_head.init_from_embeddings(embedder, init_loader, device)
     embedder.train()
@@ -94,8 +95,8 @@ def main():
         }
     }
     optimizer = build_optimizer(embedder, proxy_head, cfg)
-    # BUG FIX: mode="min" + step(avg) thay vì mode="max" + step(-avg) — cùng kết quả
-    # nhưng rõ ràng hơn, nhất quán với train.py dùng mode="max" + step(val_recall).
+    # mode="min" + step(avg) is equivalent to mode="max" + step(-avg)
+    # but clearer and consistent with train.py using mode="max" + step(val_recall).
     scheduler = ReduceLROnPlateau(optimizer, patience=2, factor=0.5, mode="min")
 
     losses = []
@@ -160,4 +161,5 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_logging(__file__)
     main()

@@ -1,8 +1,8 @@
 """
-ViT-B/32 embedder — paper Sec 4.2:
+ViT-B/32 embedder:
   - open_clip ViT-B/32 trunk with OpenAI pretrained weights
   - bicubic-interpolate positional embeddings 224→160
-  - FC 768→128 head
+  - FC 512→128 head
   - L2-normalized output
 """
 import math
@@ -30,9 +30,7 @@ class ViTEmbedder(nn.Module):
 
         trunk_dim = self.trunk.output_dim  # 512 for ViT-B/32 (post-projection dim)
 
-        # FC 512→128: paper Sec 4.2 "FC layer of shape 128 × d0,
-        # where d0 is the output dimension of the base (trunk) architecture."
-        # open_clip ViT-B/32 output_dim = 512 (sau CLIP projection layer).
+        # open_clip ViT-B/32 output_dim = 512 (post CLIP projection layer)
         self.fc = nn.Linear(trunk_dim, embed_dim)
 
     def _interpolate_pos_embed(self, new_size: int) -> None:

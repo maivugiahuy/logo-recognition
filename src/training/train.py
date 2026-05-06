@@ -59,8 +59,8 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # TF32 — miễn phí ~10% speedup trên Ampere/Ada (RTX 30xx/40xx).
-    # Không ảnh hưởng accuracy vì loss/eval vẫn dùng bfloat16/float32.
+    # TF32 — free ~10% speedup on Ampere/Ada (RTX 30xx/40xx).
+    # No accuracy impact since loss/eval still use bfloat16/float32.
     if device.type == "cuda":
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
@@ -101,8 +101,7 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
     )
 
     # ── Model ─────────────────────────────────────────────────────────────
-    # FIX: freeze_blocks=0 để fine-tune toàn bộ 12 transformer blocks đúng paper.
-    # freeze_blocks=8 (default cũ) là speedup không có trong paper → accuracy thấp hơn.
+    # freeze_blocks=0 = full fine-tune of all 12 blocks; any value > 0 degrades accuracy.
     freeze_blocks = cfg.get("freeze_blocks", 0)
     embedder = build_vit_embedder(
         cfg["embed_dim"], cfg["input_size"], freeze_blocks=freeze_blocks
@@ -114,8 +113,7 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
         print(f"Loaded weights from {cfg['init_from']}")
 
     proxy_head = ProxyHead(train_ds.num_classes, cfg["embed_dim"]).to(device)
-    # FIX: proxy init phải dùng toàn bộ training data (paper Sec 4.2),
-    # không phải train_loader có batch_sampler (chỉ lấy ~m ảnh/class).
+    # proxy init must use full training data, not train_loader with batch_sampler (~m imgs/class).
     init_loader = DataLoader(
         train_ds, batch_size=256, shuffle=False,
         num_workers=n_workers, pin_memory=True,
@@ -131,17 +129,17 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
         criterion = ProxyNCAPPLoss(sigma=sigma)
 
     # ── Optimizer ─────────────────────────────────────────────────────────
-    # FIX: build_optimizer TRƯỚC torch.compile để tránh id(param) không ổn định
-    # khi OptimizedModule wrap model gốc.
+    # build_optimizer BEFORE torch.compile to avoid unstable id(param)
+    # when OptimizedModule wraps the original model.
     optimizer = build_optimizer(embedder, proxy_head, cfg)
 
     # torch.compile — free ~10-20% on Ampere/Ada GPUs (skip on CPU)
-    # Đặt SAU optimizer để param groups đã được gắn vào đúng tensor objects.
+    # Must come AFTER optimizer so param groups are bound to the correct tensor objects.
     import platform
     use_compile = (
         device.type == "cuda"
         and cfg.get("compile", True)
-        and platform.system() != "Windows"  # Triton không hỗ trợ Windows
+        and platform.system() != "Windows"  # Triton not supported on Windows
     )
     if use_compile:
         embedder = torch.compile(embedder)
@@ -161,7 +159,7 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
     scaler = GradScaler(enabled=use_amp)
     print(f"AMP: {'enabled (' + str(amp_dtype) + ')' if use_amp else 'disabled'}")
 
-    # Early stopping — dừng khi val recall không cải thiện sau `es_patience` epochs
+    # Early stopping — stop when val recall shows no improvement for es_patience epochs
     es_patience = cfg.get("early_stopping_patience", 6)
     epochs_no_improve = 0
     print(f"Early stopping patience: {es_patience} epochs")
@@ -204,8 +202,8 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
         else:
             epochs_no_improve += 1
             if epochs_no_improve >= es_patience:
-                print(f"\nEarly stopping tại epoch {epoch+1} "
-                      f"(không cải thiện sau {es_patience} epochs)")
+                print(f"\nEarly stopping at epoch {epoch+1} "
+                      f"(no improvement for {es_patience} epochs)")
                 break
 
     print(f"\nBest val recall@1: {best_recall:.4f}")

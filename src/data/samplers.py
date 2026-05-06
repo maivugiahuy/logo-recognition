@@ -2,7 +2,7 @@
 Batch samplers:
   MPerClassSampler       — k classes × m images (standard ProxyNCA++ batch)
   HardNegativeBatchSampler — k classes × m images + 1 HN class per positive class
-                             Sec 3.2.3: batch size ∈ [km, 2km]
+                             batch size ∈ [km, 2km]
 """
 import json
 import random

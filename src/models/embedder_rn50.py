@@ -1,5 +1,5 @@
 """
-ResNet50 embedder variant — paper ablation (Table 3 ResNet50 row).
+ResNet50 embedder variant.
   - torchvision ResNet50 pretrained on ImageNet1K
   - Final avgpool replaced with adaptive max pool
   - Layer norm before output
@@ -15,7 +15,7 @@ class ResNet50Embedder(nn.Module):
     def __init__(self, embed_dim: int = 128):
         super().__init__()
         base = tvm.resnet50(weights=tvm.ResNet50_Weights.IMAGENET1K_V1)
-        # Replace avgpool with adaptive max pool (Sec 4.2)
+        # Replace avgpool with adaptive max pool
         base.avgpool = nn.AdaptiveMaxPool2d(1)
         # Remove original fc
         self.trunk = nn.Sequential(*list(base.children())[:-1])  # → (B, 2048, 1, 1)

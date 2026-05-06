@@ -1,5 +1,5 @@
 """
-Hard-negative mining — paper Sec 3.2.3.
+Hard-negative mining.
 For each class yi, h(yi) = {yj : α1 ≤ C[i,j] ≤ α2  AND  levenshtein(name_i, name_j) > 2}
 Output: data/processed/hn_map.json  {class_name: [hn_class_name, ...]}
 """
@@ -42,7 +42,6 @@ def mine(
     n_with_hn = sum(1 for v in hn_map.values() if v)
     print(f"HN map: {n_with_hn}/{num_classes} classes have hard negatives ({n_total} total pairs)")
 
-    # Spot-check expected examples from paper
     for probe in ["h_j_heinz", "heinz", "heineken"]:
         if probe in hn_map:
             print(f"  h({probe}) = {hn_map[probe]}")

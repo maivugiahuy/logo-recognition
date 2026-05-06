@@ -6,7 +6,7 @@ End-to-end inference pipeline (Step 11):
 2. Crop + resize 160×160
 3. ViT embedder → 128-d L2 vector
 4. FAISS IndexFlatIP → top-1 brand
-5. Unknown threshold: nếu cosine similarity < threshold → "unknown"
+5. Unknown threshold: if cosine similarity < threshold → "unknown"
 """
 from pathlib import Path
 
@@ -23,10 +23,10 @@ DEFAULT_DETECTOR = "runs/detect/checkpoints/yolov8_logo/weights/best.pt"
 DEFAULT_EMBEDDER = "checkpoints/vit_hn.pt"
 DEFAULT_GALLERY = "openlogodet3k"
 
-# Cosine similarity threshold để quyết định "unknown".
-# Embeddings L2-normalized → inner product = cosine sim ∈ [-1, 1].
-# Score < threshold → brand không đủ tự tin → trả về "unknown".
-# Tune bằng cách chạy pipeline trên val set và tìm F1-optimal threshold.
+# Cosine similarity threshold for "unknown" decision.
+# Embeddings are L2-normalized → inner product = cosine sim ∈ [-1, 1].
+# Score < threshold → brand confidence too low → return "unknown".
+# Tune by running the pipeline on the val set and finding the F1-optimal threshold.
 DEFAULT_UNKNOWN_THRESHOLD = 0.50
 
 
@@ -79,7 +79,7 @@ class LogoRecognitionPipeline:
         Returns list of dicts:
           {
             "box":        {x1, y1, x2, y2, conf},
-            "brand":      str  (class name hoặc "unknown"),
+            "brand":      str  (class name or "unknown"),
             "score":      float  (cosine similarity, 0–1),
             "is_unknown": bool,
           }

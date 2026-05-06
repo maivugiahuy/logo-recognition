@@ -1,6 +1,4 @@
-"""
-AdamW optimizer with 3 param groups (trunk / fc / proxy) — Table 5.
-"""
+"""AdamW optimizer with 3 param groups (trunk / fc / proxy)."""
 import torch
 from torch.optim import AdamW
 

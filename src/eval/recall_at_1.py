@@ -1,7 +1,7 @@
 """
-Recall@1 evaluation — paper Sec 4.1.
+Recall@1 evaluation.
 Modes:
-  query_vs_gallery  — 10 random imgs/class as query, rest as gallery (Sec 4.1)
+  query_vs_gallery  — 10 random imgs/class as query, rest as gallery
   all_vs_all        — entire set vs itself, 2nd nearest if query in gallery
 Subsets:
   text              — classes containing "_text" in name
@@ -25,7 +25,7 @@ from src.data.dataset import LogoDataset
 from src.data.transforms import val_transforms
 from src.models.embedder_vit import build_vit_embedder
 
-SMALL_THRESHOLD = 70  # paper: 40th percentile ~70px (Sec 4.1.4)
+SMALL_THRESHOLD = 70  # 40th percentile of crop min-side ≈ 70px
 N_QUERY_PER_CLASS = 10
 SEED = 42
 
@@ -73,8 +73,8 @@ def query_vs_gallery(
     query_idx, gallery_idx = [], []
     for cls, indices in class_to_indices.items():
         rng.shuffle(indices)
-        # Adaptive: dùng tối đa 1/3 làm query, ít nhất 1 gallery còn lại
-        # Tránh trường hợp class nhỏ có 0 ảnh trong gallery
+        # Adaptive: use at most 1/3 as query, keep at least 1 image in gallery
+        # Avoids small classes ending up with 0 gallery images
         n_q = min(n_query, max(1, len(indices) - 1), len(indices) // 3 + 1)
         query_idx.extend(indices[:n_q])
         gallery_idx.extend(indices[n_q:])

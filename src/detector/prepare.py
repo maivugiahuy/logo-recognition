@@ -69,8 +69,8 @@ def prepare_yolo_dataset() -> None:
         except Exception:
             continue
 
-        # Tên file unique: hash 8 ký tự của full path + tên gốc
-        # Tránh collision khi nhiều class dùng tên file giống nhau (1.jpg, 2.jpg...)
+        # Unique filename: 8-char md5 hash of full path + original name
+        # Avoids collision when multiple classes share the same filename (1.jpg, 2.jpg...)
         uid = hashlib.md5(str(img_path).encode()).hexdigest()[:8]
         unique_stem = f"{uid}_{img_path.stem}"
         dest_img = OUT / "images" / split / f"{unique_stem}{img_path.suffix}"

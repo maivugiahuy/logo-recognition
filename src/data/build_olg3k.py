@@ -164,17 +164,17 @@ def filter_min_side(df: pd.DataFrame) -> pd.DataFrame:
 def dedupe_images(df: pd.DataFrame) -> pd.DataFrame:
     """Remove duplicate images within same class via perceptual hash.
 
-    BUG FIX (performance): phiên bản cũ gọi imagehash.phash() cho mỗi row trong
-    200k+ rows, tức mở cùng 1 ảnh nhiều lần nếu có nhiều bbox. Phiên bản mới chỉ
-    hash mỗi (class, image_path) unique một lần rồi broadcast kết quả về toàn bộ df.
+    Performance fix: old version called imagehash.phash() per row in 200k+ rows,
+    opening the same image multiple times per multi-bbox image. New version hashes
+    each unique (class, image_path) once and broadcasts the result across the full df.
     """
     before = len(df)
 
-    # Bước 1: lấy danh sách (class_name, image_path) unique cần hash
+    # Step 1: get unique (class_name, image_path) pairs to hash
     unique_pairs = df[["class_name", "image_path"]].drop_duplicates()
 
     seen: dict[str, set] = {}
-    keep_image: set[tuple] = set()  # (class_name, image_path) được giữ lại
+    keep_image: set[tuple] = set()  # (class_name, image_path) pairs to keep
 
     for _, row in tqdm(unique_pairs.iterrows(), total=len(unique_pairs), desc="Deduping unique images"):
         cls = row["class_name"]
@@ -184,12 +184,12 @@ def dedupe_images(df: pd.DataFrame) -> pd.DataFrame:
         try:
             phash = str(imagehash.phash(Image.open(img).convert("RGB")))
         except Exception:
-            phash = img  # fallback: dùng path làm hash
+            phash = img  # fallback: use path as hash
         if phash not in seen[cls]:
             seen[cls].add(phash)
             keep_image.add((cls, img))
 
-    # Bước 2: broadcast kết quả về toàn bộ df
+    # Step 2: broadcast results to the full df
     df["_key"] = list(zip(df["class_name"], df["image_path"]))
     df = df[df["_key"].isin(keep_image)].drop(columns=["_key"])
     print(f"  dedupe: {before} → {len(df)} objects")

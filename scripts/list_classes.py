@@ -1,18 +1,19 @@
 """
-Xuất danh sách classes ra file TXT.
+Export class list to a TXT file.
 
-Mỗi dòng: class_name | n_objects | n_images
-Đọc từ data/processed/openlogodet3k/annotations.parquet (sau Step 3).
+Each line: class_name | n_objects | n_images
+Reads from data/processed/openlogodet3k/annotations.parquet (after Step 3).
 
 Usage:
     python scripts/list_classes.py                  # → results/classes.txt
-    python scripts/list_classes.py --out my.txt     # output tùy chỉnh
+    python scripts/list_classes.py --out my.txt     # custom output path
 """
 import argparse
 import sys
 from pathlib import Path
 
 sys.path.insert(0, ".")
+from src.utils.logging_utils import setup_logging
 
 ANN = Path("data/processed/openlogodet3k/annotations.parquet")
 
@@ -23,9 +24,10 @@ if __name__ == "__main__":
                         help="Output file path (default: results/classes.txt)")
     args = parser.parse_args()
 
+    setup_logging(__file__)
     import pandas as pd
     if not ANN.exists():
-        print(f"[ERROR] {ANN} không tồn tại. Chạy Step 3 trước.")
+        print(f"[ERROR] {ANN} not found. Run Step 3 first.")
         sys.exit(1)
 
     df = pd.read_parquet(ANN)

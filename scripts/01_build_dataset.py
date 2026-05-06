@@ -3,8 +3,10 @@ import sys
 sys.path.insert(0, ".")
 from src.data.build_olg3k import build
 from src.data.splits import build as build_splits
+from src.utils.logging_utils import setup_logging
 
 if __name__ == "__main__":
+    setup_logging(__file__)
     print("=== Step 1: Build LogoDet-3K + OpenLogo ===")
     df = build()
     print("\n=== Step 2: Build splits ===")

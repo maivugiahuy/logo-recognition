@@ -1,4 +1,4 @@
-"""Image transforms — 160×160, color jitter, random perspective (Sec 4.2)."""
+"""Image transforms — 160×160, color jitter, random perspective."""
 import torchvision.transforms as T
 
 MEAN = (0.48145466, 0.4578275, 0.40821073)  # CLIP normalization

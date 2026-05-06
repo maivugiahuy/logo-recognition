@@ -1,7 +1,7 @@
 """
-ProxyNCAHN++ loss — paper eq (5).
+ProxyNCAHN++ loss.
 Extends ProxyNCA++ denominator with image-embedding terms for hard-negative
-class samples present in the batch (Sec 3.2.2).
+class samples present in the batch.
 
 P_i^HN ∝ g(f(xi), zi) / [Σ_{z∈P} g(f(xi), z) + Σ_{xj∈HN(i)} g(f(xi), f(xj))]
 

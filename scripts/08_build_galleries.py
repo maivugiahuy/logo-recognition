@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.insert(0, ".")
 import pandas as pd
 from src.retrieval.gallery import build_gallery
+from src.utils.logging_utils import setup_logging
 
 ANN = Path("data/processed/openlogodet3k/annotations.parquet")
 CKPT = "checkpoints/vit_hn.pt"
@@ -25,6 +26,7 @@ def _ensure_per_ds_parquet(name: str, parquet_path: str) -> None:
 
 
 if __name__ == "__main__":
+    setup_logging(__file__)
     for name, parquet in DATASETS.items():
         print(f"\n=== Building gallery: {name} ===")
         _ensure_per_ds_parquet(name, parquet)

@@ -49,7 +49,7 @@ class LogoDataset(Dataset):
                     rows = df[(df["class_name"] == class_name) & (df["image_path"].isin(img_set))]
                     keep_rows.append(rows)
                 df = pd.concat(keep_rows, ignore_index=True) if keep_rows else df.iloc[:0]
-        # else: split_json=None → dùng toàn bộ parquet (parquet đã được lọc sẵn trước)
+        # else: split_json=None → use the full parquet (already pre-filtered)
 
         all_classes = sorted(df["class_name"].unique().tolist())
         class_to_idx = {c: i for i, c in enumerate(all_classes)}

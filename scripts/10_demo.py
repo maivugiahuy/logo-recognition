@@ -1,9 +1,9 @@
 """
-Step 11: End-to-end demo — input image(s) → brand labels with bounding boxes.
-Usage: python scripts/08_demo.py path/to/image.jpg [path/to/image2.jpg ...]
-       python scripts/08_demo.py --gallery openlogodet3k --conf 0.1   # eval gallery
-       python scripts/08_demo.py --gallery new_classes --conf 0.1     # user-added classes
-       python scripts/08_demo.py img.jpg --save_crops                 # save cropped logos
+Step 10: End-to-end demo — input image(s) → brand labels with bounding boxes.
+Usage: python scripts/10_demo.py path/to/image.jpg [path/to/image2.jpg ...]
+       python scripts/10_demo.py --gallery openlogodet3k --conf 0.1   # eval gallery
+       python scripts/10_demo.py --gallery new_classes --conf 0.1     # user-added classes
+       python scripts/10_demo.py img.jpg --save_crops                 # save cropped logos
 """
 import argparse
 import sys
@@ -13,6 +13,7 @@ sys.path.insert(0, ".")
 from PIL import Image, ImageDraw, ImageFont
 
 from src.retrieval.pipeline import LogoRecognitionPipeline
+from src.utils.logging_utils import setup_logging
 
 _PALETTE = [
     "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
@@ -69,6 +70,7 @@ if __name__ == "__main__":
                         help="Save each detected logo crop as a separate image")
     args = parser.parse_args()
 
+    setup_logging(__file__)
     print("Loading pipeline...")
     pipeline = LogoRecognitionPipeline(
         detector_weights=args.detector,

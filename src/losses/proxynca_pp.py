@@ -1,5 +1,5 @@
 """
-ProxyNCA++ loss — paper eqs (1)–(3).
+ProxyNCA++ loss.
 Squared L2 distance between L2-normalized vectors, temperature σ=0.06.
 
 L = -log( g(f(xi), z_i) / Σ_{z∈P} g(f(xi), z) )
@@ -25,8 +25,8 @@ def squared_l2_distance(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
 class ProxyNCAPPLoss(nn.Module):
     """
-    ProxyNCA++ loss (Teh et al., 2020) with squared-L2 and temperature scaling.
-    Paper eq (3): L = -log(g(f(xi), zi) / Σ_{z∈P} g(f(xi), z))
+    ProxyNCA++ loss with squared-L2 and temperature scaling.
+    L = -log(g(f(xi), zi) / Σ_{z∈P} g(f(xi), z))
     """
 
     def __init__(self, sigma: float = 0.06):

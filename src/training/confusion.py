@@ -1,7 +1,4 @@
-"""
-Build row-normalized confusion matrix on validation set.
-Used as input to hard-negative mining (Sec 3.2.3).
-"""
+"""Build row-normalized confusion matrix on validation set — used as input to hard-negative mining."""
 from pathlib import Path
 
 import numpy as np

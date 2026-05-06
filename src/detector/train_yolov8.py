@@ -1,7 +1,4 @@
-"""
-Fine-tune YOLOv8m as class-agnostic logo detector (Appendix A substitute).
-Paper used YoloV4 on proprietary PL2K; we use YOLOv8m on LogoDet-3K + OpenLogo.
-"""
+"""Fine-tune YOLOv8m as class-agnostic logo detector on LogoDet-3K + OpenLogo."""
 from pathlib import Path
 
 import yaml

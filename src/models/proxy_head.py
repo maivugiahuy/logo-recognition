@@ -1,5 +1,5 @@
 """
-Learnable proxy vectors — one per class (paper Sec 3.1, eq 3).
+Learnable proxy vectors — one per class.
 Initialized from per-class mean embeddings of the pretrained model.
 """
 import torch

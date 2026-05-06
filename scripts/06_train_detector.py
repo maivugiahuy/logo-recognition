@@ -5,6 +5,7 @@ sys.path.insert(0, ".")
 from src.detector.prepare import prepare_yolo_dataset
 from src.detector.train_yolov8 import train_detector
 from src.detector.detect import evaluate_ap
+from src.utils.logging_utils import setup_logging
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -12,6 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_only", action="store_true")
     parser.add_argument("--config", default="configs/detector_yolov8.yaml")
     args = parser.parse_args()
+    setup_logging(__file__)
 
     best_weights = "runs/detect/checkpoints/yolov8_logo/weights/best.pt"
 

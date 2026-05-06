@@ -12,6 +12,7 @@ sys.path.insert(0, ".")
 from PIL import Image, ImageDraw
 
 from src.detector.detect import LogoDetector
+from src.utils.logging_utils import setup_logging
 
 
 def draw_boxes(image_path: str, boxes: list[dict], out_path: str | None = None) -> None:
@@ -36,6 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_dir", default=None)
     args = parser.parse_args()
 
+    setup_logging(__file__)
     detector = LogoDetector(weights=args.detector, conf=args.conf, iou=args.iou)
 
     for img_path in args.images:

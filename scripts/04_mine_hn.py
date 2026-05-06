@@ -5,6 +5,7 @@ sys.path.insert(0, ".")
 
 import yaml
 from src.training.mine_hn import mine
+from src.utils.logging_utils import setup_logging
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -25,5 +26,6 @@ if __name__ == "__main__":
     lev_min = args.lev_min if args.lev_min is not None else cfg.get("hn_mining", {}).get("levenshtein_min", 2)
     ckpt = args.ckpt or cfg.get("hn_mining", {}).get("map_path", "checkpoints/vit_base.pt")
 
+    setup_logging(__file__)
     print(f"Config: freeze_blocks={freeze_blocks}, alpha1={alpha1}, alpha2={alpha2}, lev_min={lev_min}")
     mine(ckpt, alpha1, alpha2, lev_min, freeze_blocks=freeze_blocks)

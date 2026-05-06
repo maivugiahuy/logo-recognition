@@ -8,6 +8,6 @@ __pycache__/
 .claude/
 CLAUDE.md
 runs/
-latex/
+docs/
 results/
-/md
+/logs

@@ -1,7 +1,4 @@
-"""
-Class-agnostic logo detection with objectness threshold sweep.
-Paper (Appendix A, Fig 7) shows {0.4, 0.1, 0.01} thresholds.
-"""
+"""Class-agnostic logo detection with objectness threshold sweep."""
 from pathlib import Path
 from typing import Union
 
