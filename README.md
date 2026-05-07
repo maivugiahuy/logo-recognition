@@ -41,7 +41,7 @@
 - `freeze_blocks=0` — unfreeze all 12 ViT blocks (required for accuracy)
 - `num_workers=8` + `persistent_workers=True`
 - TF32 enabled on Ampere/Ada (`allow_tf32=True`)
-- Early stopping patience=6 instead of fixed epochs
+- Early stopping patience=5 instead of fixed epochs
 
 ---
 
@@ -151,7 +151,7 @@ Output: `checkpoints/vit_hn.pt`
 ```bash
 python scripts/06_train_detector.py
 ```
-YOLOv8m, class-agnostic (1 class: "logo"), imgsz=512, batch=48, 25 epochs.
+YOLOv8m, class-agnostic (1 class: "logo"), imgsz=512, batch=48, 50 epochs.
 
 Output: `runs/detect/checkpoints/yolov8_logo/weights/best.pt`
 
@@ -219,22 +219,6 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 
 ---
 
-## Compute budget (1× RTX 5060 Ti 16 GB, Windows)
-
-| Phase | Actual |
-|---|---|
-| Build dataset | ~45–60 min |
-| Smoke test | ~5 min |
-| Phase A (50 epochs, batch 512) | ~2–3 h |
-| HN mining | ~1 min |
-| Phase C (50 epochs, batch 512) | ~5 h |
-| Detector (YOLOv8m) | ~3.5 h |
-| Gallery build | ~5–10 min |
-| Eval | ~10–15 min |
-| **Total** | **~12–14 h** |
-
----
-
 ## Key hyperparameters
 
 ### Phase A (`configs/base_vit.yaml`)
@@ -274,7 +258,7 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 | Model | yolov8m.pt |
 | imgsz | 512 |
 | batch | 48 |
-| epochs | 25 |
+| epochs | 50 |
 | patience | 5 |
 | cache | disk |
 

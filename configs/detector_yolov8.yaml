@@ -2,7 +2,7 @@
 model: yolov8m.pt
 data: data/processed/detector_yolo/dataset.yaml
 imgsz: 512
-epochs: 30          # reduced from 50: sufficient convergence on this dataset
+epochs: 50          # reduced from 50: sufficient convergence on this dataset
 batch: 64           # RTX 5060 Ti 16GB: 512px × batch64 uses ~12–13GB VRAM
 device: 0
 project: checkpoints
