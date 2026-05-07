@@ -1,7 +1,7 @@
-# Phase A: open-set ViT-B/32 + ProxyNCA++
+# Phase A: open-set ViT-L/14 + ProxyNCA++
 mode: open_set
-backbone: vit_b32_openai   # open_clip ViT-B/32 pretrained='openai'
-input_size: 160
+backbone: vit_l14_openai   # open_clip ViT-L/14 pretrained='openai'
+input_size: 196
 embed_dim: 128
 
 optimizer:
@@ -31,7 +31,7 @@ training:
   m: 8              # images per class
 
 amp: true
-compile: false      # torch.compile disabled on Windows (Triton not supported)
+compile: true       # enabled on Linux; auto-disabled on Windows (no Triton)
 num_workers: 8
 persistent_workers: true
 freeze_blocks: 0    # unfreeze all 12 blocks

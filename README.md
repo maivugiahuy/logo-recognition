@@ -4,8 +4,8 @@
 
 | Component | Loss | Data split | Output |
 |---|---|---|---|
-| ViT-B/32 embedder Phase A | ProxyNCA++ | Open-set train classes (~1600) | `checkpoints/vit_base.pt` |
-| ViT-B/32 embedder Phase C | ProxyNCAHN++ | Closed-set train classes (~1900) | `checkpoints/vit_hn.pt` |
+| ViT-L/14 embedder Phase A | ProxyNCA++ | Open-set train classes (~1600) | `checkpoints/vit_base.pt` |
+| ViT-L/14 embedder Phase C | ProxyNCAHN++ | Closed-set train classes (~1900) | `checkpoints/vit_hn.pt` |
 | YOLOv8m detector | YOLO obj det loss | LogoDet-3K + OpenLogo boxes (class-agnostic) | `runs/detect/checkpoints/yolov8_logo/weights/best.pt` |
 
 ## Results
@@ -127,7 +127,7 @@ Verifies loss decreases over a few batches. Recall@1 = 0.0 at start is expected.
 ```bash
 python scripts/03_train_base.py --config configs/base_vit.yaml
 ```
-ProxyNCA++ on ~1600 open-set classes. Batch 512 (k=64 × m=8), max 15 epochs, AMP bfloat16, ~9 GB VRAM.
+ProxyNCA++ on ~1600 open-set classes. Batch 512 (k=64 × m=8), max 15 epochs, AMP bfloat16, ~16 GB VRAM.
 
 Output: `checkpoints/vit_base.pt`
 
@@ -143,7 +143,7 @@ Output: `data/processed/hn_map.json`
 ```bash
 python scripts/05_train_hn.py --config configs/hn_vit.yaml
 ```
-ProxyNCAHN++ on ~1900 closed-set classes. Init from `vit_base.pt`, max 25 epochs, ~15 GB VRAM.
+ProxyNCAHN++ on ~1900 closed-set classes. Init from `vit_base.pt`, max 25 epochs, ~20 GB VRAM.
 
 Output: `checkpoints/vit_hn.pt`
 
@@ -237,8 +237,8 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 
 | Param | Value |
 |---|---|
-| Backbone | ViT-B/32, OpenAI CLIP pretrained |
-| Input size | 160×160 |
+| Backbone | ViT-L/14, OpenAI CLIP pretrained |
+| Input size | 196×196 |
 | Embedding dim | 128 |
 | Temperature σ | 0.06 |
 | Trunk LR | 2.3e-6 |
