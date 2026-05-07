@@ -75,5 +75,5 @@ def build_vit_embedder(
                     p.requires_grad = False
         frozen = sum(1 for p in model.trunk.parameters() if not p.requires_grad)
         total = sum(1 for p in model.trunk.parameters())
-        print(f"Frozen {freeze_blocks}/{len(blocks)} ViT-L/14 blocks ({frozen}/{total} trunk params frozen)")
+        print(f"Frozen {freeze_blocks}/{len(blocks)} ViT blocks ({frozen}/{total} trunk params frozen)")
     return model
