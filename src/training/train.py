@@ -119,6 +119,7 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
         num_workers=n_workers, pin_memory=True,
     )
     proxy_head.init_from_embeddings(embedder, init_loader, device)
+    torch.cuda.empty_cache()  # free proxy-init VRAM before training loop
     embedder.train()
 
     # ── Loss ──────────────────────────────────────────────────────────────
@@ -153,8 +154,9 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
         mode="max",
     )
 
-    # AMP scaler — mixed precision (bfloat16 on Ampere, float16 elsewhere)
-    amp_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    # AMP scaler — bfloat16 on Ampere+ (CC>=8.0), float16 on Volta/Turing (CC<8.0)
+    cc = torch.cuda.get_device_capability()
+    amp_dtype = torch.bfloat16 if cc[0] >= 8 else torch.float16
     use_amp = device.type == "cuda" and cfg.get("amp", True)
     scaler = GradScaler(enabled=use_amp)
     print(f"AMP: {'enabled (' + str(amp_dtype) + ')' if use_amp else 'disabled'}")

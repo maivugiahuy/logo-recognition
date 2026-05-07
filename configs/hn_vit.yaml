@@ -6,9 +6,9 @@ embed_dim: 128
 init_from: checkpoints/vit_base.pt
 
 optimizer:
-  trunk_lr: 4.2e-6    # 3.0e-6 × √2 for batch 1024
-  fc_lr: 4.2e-4       # 3.0e-4 × √2
-  proxy_lr: 89        # 63 × √2
+  trunk_lr: 3.0e-6
+  fc_lr: 3.0e-4
+  proxy_lr: 63
   trunk_wd: 0.2
   fc_wd: 0.001
   proxy_wd: 0.0
@@ -27,9 +27,9 @@ early_stopping_patience: 5  # stop if no improvement after 5 epochs
 
 training:
   epochs: 50
-  batch_size: 1024  # k=64, m=16 — V100 32GB
+  batch_size: 512   # k=64, m=8 — ViT-L/14 needs ~20GB for backward at 512
   k: 64             # classes per batch
-  m: 16             # images per class
+  m: 8              # images per class
 
 amp: true
 compile: true       # enabled on Linux; auto-disabled on Windows (no Triton)
