@@ -1,8 +1,8 @@
 """
-ViT-L/14 embedder:
-  - open_clip ViT-L/14 trunk with OpenAI pretrained weights
-  - bicubic-interpolate positional embeddings 224→196
-  - FC 768→128 head
+ViT-B/32 embedder:
+  - open_clip ViT-B/32 trunk with OpenAI pretrained weights
+  - bicubic-interpolate positional embeddings 224→160
+  - FC 512→128 head
   - L2-normalized output
 """
 import math
@@ -20,7 +20,7 @@ class ViTEmbedder(nn.Module):
 
         # Load trunk (vision tower only)
         clip_model, _, _ = open_clip.create_model_and_transforms(
-            "ViT-L-14", pretrained="openai"
+            "ViT-B-32", pretrained="openai"
         )
         self.trunk = clip_model.visual
 
@@ -28,17 +28,17 @@ class ViTEmbedder(nn.Module):
         if input_size != 224:
             self._interpolate_pos_embed(input_size)
 
-        trunk_dim = self.trunk.output_dim  # 768 for ViT-L/14 (post-projection dim)
+        trunk_dim = self.trunk.output_dim  # 512 for ViT-B/32 (post-projection dim)
 
-        # open_clip ViT-L/14 output_dim = 768 (post CLIP projection layer)
+        # open_clip ViT-B/32 output_dim = 512 (post CLIP projection layer)
         self.fc = nn.Linear(trunk_dim, embed_dim)
 
     def _interpolate_pos_embed(self, new_size: int) -> None:
         """Bicubic interpolate class-token + patch positional embeddings."""
         pos_embed = self.trunk.positional_embedding  # (1 + grid^2, D)
-        patch_size = self.trunk.conv1.kernel_size[0]  # 14
-        old_grid = int(math.sqrt(pos_embed.shape[0] - 1))  # 16 for 224/14
-        new_grid = new_size // patch_size  # 14 for 196/14
+        patch_size = self.trunk.conv1.kernel_size[0]  # 32
+        old_grid = int(math.sqrt(pos_embed.shape[0] - 1))  # 7 for 224/32
+        new_grid = new_size // patch_size  # 5 for 160/32
 
         cls_tok = pos_embed[:1, :]
         patch_tokens = pos_embed[1:, :]  # (old_grid^2, D)

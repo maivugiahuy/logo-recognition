@@ -4,8 +4,8 @@
 
 | Component | Loss | Data split | Output |
 |---|---|---|---|
-| ViT-L/14 embedder Phase A | ProxyNCA++ | Open-set train classes (~1600) | `checkpoints/vit_base.pt` |
-| ViT-L/14 embedder Phase C | ProxyNCAHN++ | Closed-set train classes (~1900) | `checkpoints/vit_hn.pt` |
+| ViT-B/32 embedder Phase A | ProxyNCA++ | Open-set train classes (~1600) | `checkpoints/vit_base.pt` |
+| ViT-B/32 embedder Phase C | ProxyNCAHN++ | Closed-set train classes (~1900) | `checkpoints/vit_hn.pt` |
 | YOLOv8m detector | YOLO obj det loss | LogoDet-3K + OpenLogo boxes (class-agnostic) | `runs/detect/checkpoints/yolov8_logo/weights/best.pt` |
 
 ## Results
@@ -237,8 +237,8 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 
 | Param | Value |
 |---|---|
-| Backbone | ViT-L/14, OpenAI CLIP pretrained |
-| Input size | 196×196 |
+| Backbone | ViT-B/32, OpenAI CLIP pretrained |
+| Input size | 160×160 |
 | Embedding dim | 128 |
 | Temperature σ | 0.06 |
 | Trunk LR | 2.3e-6 |

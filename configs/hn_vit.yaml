@@ -1,7 +1,7 @@
-# Phase C: closed-set ViT-L/14 + ProxyNCAHN++
+# Phase C: closed-set ViT-B/32 + ProxyNCAHN++
 mode: closed_set
-backbone: vit_l14_openai
-input_size: 196
+backbone: vit_b32_openai
+input_size: 160
 embed_dim: 128
 init_from: checkpoints/vit_base.pt
 
@@ -32,7 +32,7 @@ training:
   m: 8              # images per class
 
 amp: true
-compile: true       # enabled on Linux; auto-disabled on Windows (no Triton)
+compile: false      # disabled: Triton requires GCC not present in pytorch container
 num_workers: 10
 persistent_workers: true
 freeze_blocks: 0    # unfreeze all 12 blocks
