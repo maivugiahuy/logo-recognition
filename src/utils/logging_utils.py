@@ -14,7 +14,9 @@ class _Tee:
 
     def write(self, data):
         self._stream.write(data)
-        self._log.write(data)
+        # Skip tqdm progress-bar writes (always contain \r) from log file
+        if '\r' not in data:
+            self._log.write(data)
         return len(data)
 
     def flush(self):
