@@ -5,9 +5,9 @@ input_size: 196
 embed_dim: 128
 
 optimizer:
-  trunk_lr: 2.3e-6
-  fc_lr: 1.5e-3
-  proxy_lr: 71
+  trunk_lr: 3.2e-6    # 2.3e-6 × √2 for batch 1024
+  fc_lr: 2.1e-3       # 1.5e-3 × √2
+  proxy_lr: 100       # 71 × √2
   trunk_wd: 0.2
   fc_wd: 0.001
   proxy_wd: 0.0
@@ -19,20 +19,20 @@ optimizer:
   proxy_eps: 1.0
 
 scheduler:
-  patience: 2       # reduce LR if no improvement after 2 epochs
+  patience: 5       # reduce LR if no improvement after 2 epochs
   factor: 0.25
 
 early_stopping_patience: 5  # stop if no improvement after 5 epochs
 
 training:
-  epochs: 15
-  batch_size: 512   # k=64, m=8
+  epochs: 50
+  batch_size: 1024  # k=64, m=16 — V100 32GB
   k: 64             # classes per batch
-  m: 8              # images per class
+  m: 16             # images per class
 
 amp: true
 compile: true       # enabled on Linux; auto-disabled on Windows (no Triton)
-num_workers: 8
+num_workers: 10
 persistent_workers: true
 freeze_blocks: 0    # unfreeze all 12 blocks
 

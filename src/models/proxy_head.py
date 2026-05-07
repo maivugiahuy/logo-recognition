@@ -21,25 +21,26 @@ class ProxyHead(nn.Module):
         device: torch.device,
     ) -> None:
         """Compute per-class mean embedding and set as initial proxy values."""
-        embedder.eval()
-        class_sums: dict[int, torch.Tensor] = {}
-        class_counts: dict[int, int] = {}
+        num_classes = self.proxies.shape[0]
+        embed_dim = self.proxies.shape[1]
 
+        sums   = torch.zeros(num_classes, embed_dim, device=device)
+        counts = torch.zeros(num_classes, device=device)
+
+        embedder.eval()
         with torch.no_grad():
             for imgs, labels in tqdm(dataloader, desc="Proxy init"):
-                imgs = imgs.to(device)
-                embs = embedder(imgs)  # (B, D), on GPU, L2 normalized
-                for emb, lbl in zip(embs, labels.tolist()):
-                    if lbl not in class_sums:
-                        class_sums[lbl] = torch.zeros_like(emb)  # GPU
-                        class_counts[lbl] = 0
-                    class_sums[lbl] += emb  # GPU + GPU, no device mismatch
-                    class_counts[lbl] += 1
+                imgs   = imgs.to(device)
+                labels = labels.to(device)
+                embs   = embedder(imgs)                        # (B, D)
+                sums.scatter_add_(0, labels.unsqueeze(1).expand_as(embs), embs)
+                counts.scatter_add_(0, labels, torch.ones(len(labels), device=device))
 
-        proxy_device = self.proxies.device
+        mask = counts > 0
+        mean_embs = sums[mask] / counts[mask].unsqueeze(1)    # (C, D)
+        mean_embs = F.normalize(mean_embs, dim=-1)
+
         with torch.no_grad():
-            for lbl, total in class_sums.items():
-                mean_emb = total / class_counts[lbl]
-                self.proxies.data[lbl] = F.normalize(mean_emb, dim=-1).to(proxy_device)
+            self.proxies.data[mask] = mean_embs.to(self.proxies.device)
 
-        print(f"Proxies initialized for {len(class_sums)} classes.")
+        print(f"Proxies initialized for {int(mask.sum())} classes.")
