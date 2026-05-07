@@ -73,9 +73,21 @@ def _ensure_openset_test_parquet() -> Path:
     return out
 
 
-def run_all(ckpt_path: str = CKPT) -> dict:
+def run_all(ckpt_path: str = CKPT, split: str = "all", ckpt_label: str = None) -> dict:
+    """Run evaluation.
+    split: 'all' | 'closedset' | 'openset'
+    ckpt_label: label written to CSV 'checkpoint' column (defaults to ckpt_path)
+    """
+    configs = EVAL_CONFIGS
+    if split == "closedset":
+        configs = {k: v for k, v in EVAL_CONFIGS.items() if "closedset" in k}
+    elif split == "openset":
+        configs = {k: v for k, v in EVAL_CONFIGS.items() if "openset" in k}
+
+    label = ckpt_label or ckpt_path
+
     all_results = {}
-    for name, cfg in EVAL_CONFIGS.items():
+    for name, cfg in configs.items():
         parquet = cfg["parquet"]
         if not parquet.exists():
             if name == "openlogodet3k_openset":
@@ -87,7 +99,7 @@ def run_all(ckpt_path: str = CKPT) -> dict:
             continue
 
         print(f"\n{'='*50}")
-        print(f"Dataset: {name.upper()}")
+        print(f"Checkpoint: {label}  |  Dataset: {name.upper()}")
 
         results = evaluate(
             ckpt_path=ckpt_path,
@@ -97,20 +109,33 @@ def run_all(ckpt_path: str = CKPT) -> dict:
         )
         all_results[name] = results
 
-    # Save CSV
+    # Append to CSV (accumulate across multiple run_all calls in one session)
     rows = []
     for ds, res in all_results.items():
-        row = {"dataset": ds}
+        row = {"checkpoint": label, "dataset": ds}
         row.update(res)
         rows.append(row)
-    df = pd.DataFrame(rows)
-    Path("results").mkdir(exist_ok=True)
-    df.to_csv("results/eval_results.csv", index=False)
-    print(f"\nSaved → results/eval_results.csv")
+    if rows:
+        out_csv = Path("results/eval_results.csv")
+        Path("results").mkdir(exist_ok=True)
+        new_df = pd.DataFrame(rows)
+        if out_csv.exists():
+            existing = pd.read_csv(out_csv)
+            # Drop rows with same checkpoint+dataset (overwrite stale results)
+            mask = ~(
+                existing["checkpoint"].isin(new_df["checkpoint"]) &
+                existing["dataset"].isin(new_df["dataset"])
+            )
+            combined = pd.concat([existing[mask], new_df], ignore_index=True)
+        else:
+            combined = new_df
+        combined.to_csv(out_csv, index=False)
+        print(f"\nSaved → {out_csv}")
     return all_results
 
 
 if __name__ == "__main__":
     import sys
     ckpt = sys.argv[1] if len(sys.argv) > 1 else CKPT
-    run_all(ckpt)
+    split = sys.argv[2] if len(sys.argv) > 2 else "all"
+    run_all(ckpt, split=split)

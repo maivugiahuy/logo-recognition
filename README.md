@@ -127,7 +127,7 @@ Verifies loss decreases over a few batches. Recall@1 = 0.0 at start is expected.
 ```bash
 python scripts/03_train_base.py --config configs/base_vit.yaml
 ```
-ProxyNCA++ on ~1600 open-set classes. Batch 512 (k=64 × m=8), max 15 epochs, AMP bfloat16, ~16 GB VRAM.
+ProxyNCA++ on ~1600 open-set classes. Batch 512 (k=64 × m=8), max 50 epochs, AMP bfloat16, ~16 GB VRAM.
 
 Output: `checkpoints/vit_base.pt`
 
@@ -143,7 +143,7 @@ Output: `data/processed/hn_map.json`
 ```bash
 python scripts/05_train_hn.py --config configs/hn_vit.yaml
 ```
-ProxyNCAHN++ on ~1900 closed-set classes. Init from `vit_base.pt`, max 25 epochs, ~20 GB VRAM.
+ProxyNCAHN++ on ~1900 closed-set classes. Init from `vit_base.pt`, max 50 epochs, ~20 GB VRAM.
 
 Output: `checkpoints/vit_hn.pt`
 
@@ -159,7 +159,11 @@ Output: `runs/detect/checkpoints/yolov8_logo/weights/best.pt`
 
 ### Step 7 — Evaluate embedder
 ```bash
-python scripts/07_eval.py
+python scripts/07_eval.py                                           # both models, both splits
+python scripts/07_eval.py --split closedset                         # both models, closed-set only
+python scripts/07_eval.py --split openset                           # both models, open-set only
+python scripts/07_eval.py --ckpt checkpoints/vit_base.pt           # Phase A only, both splits
+python scripts/07_eval.py --ckpt checkpoints/vit_hn.pt --split closedset
 ```
 Output: `results/eval_results.csv`
 
@@ -221,9 +225,9 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 |---|---|
 | Build dataset | ~45–60 min |
 | Smoke test | ~5 min |
-| Phase A (15 epochs, batch 512) | ~2–3 h |
+| Phase A (50 epochs, batch 512) | ~2–3 h |
 | HN mining | ~1 min |
-| Phase C (25 epochs, batch 512) | ~5 h |
+| Phase C (50 epochs, batch 512) | ~5 h |
 | Detector (YOLOv8m) | ~3.5 h |
 | Gallery build | ~5–10 min |
 | Eval | ~10–15 min |
@@ -248,7 +252,7 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 | β2 trunk/fc | 0.98 |
 | β2 proxy | 0.999 |
 | Batch | 512 (k=64 × m=8) |
-| Max epochs | 15 |
+| Max epochs | 50 |
 | Early stopping patience | 6 |
 | freeze_blocks | 0 (full fine-tune) |
 
@@ -260,7 +264,7 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 | HN α1 / α2 | 0.05 / 0.35 |
 | Levenshtein min | > 2 |
 | Batch | 512 (k=64 × m=8) |
-| Max epochs | 25 |
+| Max epochs | 50 |
 | freeze_blocks | 0 |
 
 ### Detector (`configs/detector_yolov8.yaml`)
