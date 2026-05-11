@@ -15,6 +15,8 @@ if __name__ == "__main__":
     parser.add_argument("--alpha1", type=float, default=None)
     parser.add_argument("--alpha2", type=float, default=None)
     parser.add_argument("--lev_min", type=int, default=None)
+    parser.add_argument("--show_confused", action="store_true",
+                        help="Print all confused class pairs at alpha1 threshold")
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as f:
@@ -32,4 +34,4 @@ if __name__ == "__main__":
     print(f"Config: backbone={backbone}, input_size={input_size}, freeze_blocks={freeze_blocks}, "
           f"alpha1={alpha1}, alpha2={alpha2}, lev_min={lev_min}")
     mine(ckpt, alpha1, alpha2, lev_min, freeze_blocks=freeze_blocks,
-         backbone=backbone, input_size=input_size)
+         backbone=backbone, input_size=input_size, show_confused=args.show_confused)

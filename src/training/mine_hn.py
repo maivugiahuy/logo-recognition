@@ -1,6 +1,6 @@
 """
 Hard-negative mining.
-For each class yi, h(yi) = {yj : α1 ≤ C[i,j] ≤ α2  AND  levenshtein(name_i, name_j) > 2}
+For each class yi, h(yi) = {yj : α1 ≤ C[i,j] ≤ α2  AND  levenshtein(name_i, name_j) > lev_min}
 Output: data/processed/hn_map.json  {class_name: [hn_class_name, ...]}
 """
 import json
@@ -17,6 +17,26 @@ LEV_MIN = 2
 OUT = Path("data/processed/hn_map.json")
 
 
+def print_confused_pairs(
+    C: np.ndarray,
+    class_names: list[str],
+    threshold: float = 0.01,
+) -> None:
+    """Print all off-diagonal pairs with C[i,j] >= threshold, sorted by confusion score."""
+    pairs = [
+        (C[i, j], class_names[i], class_names[j])
+        for i in range(len(class_names))
+        for j in range(len(class_names))
+        if i != j and C[i, j] >= threshold
+    ]
+    pairs.sort(reverse=True)
+    print(f"\nConfused pairs (C[i,j] >= {threshold}) — {len(pairs)} total:")
+    print(f"{'Class':<35} {'Confused with':<35} {'C[i,j]':>8}")
+    print("-" * 82)
+    for score, name_i, name_j in pairs:
+        print(f"{name_i:<35} {name_j:<35} {score:>8.4f}")
+
+
 def mine(
     ckpt_path: str | Path,
     alpha1: float = ALPHA1,
@@ -25,6 +45,7 @@ def mine(
     freeze_blocks: int = 0,
     backbone: str = "vit_b32_openai",
     input_size: int | None = None,
+    show_confused: bool = False,
 ) -> dict[str, list[str]]:
     C, class_names = build_confusion_matrix(
         ckpt_path, backbone=backbone, input_size=input_size, freeze_blocks=freeze_blocks
@@ -49,6 +70,9 @@ def mine(
     for probe in ["h_j_heinz", "heinz", "heineken"]:
         if probe in hn_map:
             print(f"  h({probe}) = {hn_map[probe]}")
+
+    if show_confused:
+        print_confused_pairs(C, class_names, threshold=alpha1)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT, "w") as f:
