@@ -21,11 +21,15 @@ if __name__ == "__main__":
         cfg = yaml.safe_load(f)
 
     freeze_blocks = cfg.get("freeze_blocks", 0)
+    backbone = cfg.get("backbone", "vit_b32_openai")
+    input_size = cfg.get("input_size", None)
     alpha1 = args.alpha1 if args.alpha1 is not None else cfg.get("hn_mining", {}).get("alpha1", 0.05)
     alpha2 = args.alpha2 if args.alpha2 is not None else cfg.get("hn_mining", {}).get("alpha2", 0.35)
     lev_min = args.lev_min if args.lev_min is not None else cfg.get("hn_mining", {}).get("levenshtein_min", 2)
     ckpt = args.ckpt or cfg.get("hn_mining", {}).get("map_path", "checkpoints/vit_base.pt")
 
     setup_logging(__file__)
-    print(f"Config: freeze_blocks={freeze_blocks}, alpha1={alpha1}, alpha2={alpha2}, lev_min={lev_min}")
-    mine(ckpt, alpha1, alpha2, lev_min, freeze_blocks=freeze_blocks)
+    print(f"Config: backbone={backbone}, input_size={input_size}, freeze_blocks={freeze_blocks}, "
+          f"alpha1={alpha1}, alpha2={alpha2}, lev_min={lev_min}")
+    mine(ckpt, alpha1, alpha2, lev_min, freeze_blocks=freeze_blocks,
+         backbone=backbone, input_size=input_size)

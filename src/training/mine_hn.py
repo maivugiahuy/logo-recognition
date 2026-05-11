@@ -23,8 +23,12 @@ def mine(
     alpha2: float = ALPHA2,
     lev_min: int = LEV_MIN,
     freeze_blocks: int = 0,
+    backbone: str = "vit_b32_openai",
+    input_size: int | None = None,
 ) -> dict[str, list[str]]:
-    C, class_names = build_confusion_matrix(ckpt_path, freeze_blocks=freeze_blocks)
+    C, class_names = build_confusion_matrix(
+        ckpt_path, backbone=backbone, input_size=input_size, freeze_blocks=freeze_blocks
+    )
     num_classes = len(class_names)
     hn_map: dict[str, list[str]] = {}
 

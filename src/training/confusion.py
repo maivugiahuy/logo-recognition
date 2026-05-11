@@ -8,18 +8,22 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from src.data.dataset import LogoDataset
-from src.data.transforms import val_transforms
+from src.data.transforms import val_transforms, val_transforms_dinov2
+from src.models.embedder_dinov2 import build_dinov2_embedder
 from src.models.embedder_vit import build_vit_embedder
 from src.models.proxy_head import ProxyHead
 
 ANN = Path("data/processed/openlogodet3k/annotations.parquet")
 SPLITS = Path("data/processed/openlogodet3k/splits")
 
+_DINOV2_BACKBONES = {"dinov2_vitb14", "dinov2"}
+
 
 def build_confusion_matrix(
     ckpt_path: str | Path,
+    backbone: str = "vit_b32_openai",
     embed_dim: int = 128,
-    input_size: int = 160,
+    input_size: int | None = None,
     batch_size: int = 256,
     freeze_blocks: int = 0,
 ) -> tuple[np.ndarray, list[str]]:
@@ -28,16 +32,20 @@ def build_confusion_matrix(
       C: (num_classes, num_classes) row-normalized confusion matrix
       class_names: list indexed by class_idx
     """
+    is_dinov2 = backbone in _DINOV2_BACKBONES
+    if input_size is None:
+        input_size = 168 if is_dinov2 else 160
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Load checkpoint first to get the exact number of proxy classes
     state = torch.load(ckpt_path, map_location=device)
     num_classes = state["proxy"]["proxies"].shape[0]
 
-    # Use open-set train split — same classes the Phase A model was trained on
+    transform = val_transforms_dinov2(input_size) if is_dinov2 else val_transforms(input_size)
     train_ds = LogoDataset.from_split(
         ANN, SPLITS / "open_train.json",
-        transform=val_transforms(input_size), mode="open_set",
+        transform=transform, mode="open_set",
     )
     val_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False, num_workers=4)
 
@@ -47,7 +55,10 @@ def build_confusion_matrix(
         f"but split has {len(class_names)} classes"
     )
 
-    embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=freeze_blocks).to(device)
+    if is_dinov2:
+        embedder = build_dinov2_embedder(embed_dim, input_size, freeze_blocks=freeze_blocks).to(device)
+    else:
+        embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=freeze_blocks).to(device)
     embedder.load_state_dict(state["embedder"])
 
     proxy_head = ProxyHead(num_classes, embed_dim).to(device)
