@@ -62,9 +62,20 @@ if __name__ == "__main__":
     parser.add_argument("--embedder", default="checkpoints/vit_hn.pt")
     parser.add_argument("--gallery", default="openlogodet3k",
                         help="Gallery name: 'openlogodet3k' (eval, default) or 'new_classes' (user-added via add_classes.py)")
+    parser.add_argument("--backbone", default="vit_b32_openai",
+                        choices=["vit_b32_openai", "dinov2_vitb14"],
+                        help="Embedder backbone (default: vit_b32_openai)")
+    parser.add_argument("--input_size", type=int, default=None,
+                        help="Override input resolution (default: 160 for ViT, 224 for DINOv2)")
     parser.add_argument("--conf", type=float, default=0.1)
     parser.add_argument("--unknown_threshold", type=float, default=0.50,
                         help="Cosine similarity threshold below which logo is 'unknown' (default: 0.50)")
+    parser.add_argument("--no_qe", action="store_true",
+                        help="Disable α-weighted Query Expansion")
+    parser.add_argument("--qe_k", type=int, default=5,
+                        help="Number of neighbors for Query Expansion (default: 5)")
+    parser.add_argument("--qe_alpha", type=float, default=3.0,
+                        help="α exponent for QE weighting — higher = closer neighbors dominate (default: 3.0)")
     parser.add_argument("--save_dir", default=None)
     parser.add_argument("--save_crops", action="store_true",
                         help="Save each detected logo crop as a separate image")
@@ -72,12 +83,20 @@ if __name__ == "__main__":
 
     setup_logging(__file__)
     print("Loading pipeline...")
+    default_input_size = 224 if args.backbone == "dinov2_vitb14" else 160
+    input_size = args.input_size if args.input_size is not None else default_input_size
+
     pipeline = LogoRecognitionPipeline(
         detector_weights=args.detector,
         embedder_ckpt=args.embedder,
         gallery_name=args.gallery,
+        backbone=args.backbone,
         conf=args.conf,
+        input_size=input_size,
         unknown_threshold=args.unknown_threshold,
+        qe_enabled=not args.no_qe,
+        qe_k=args.qe_k,
+        qe_alpha=args.qe_alpha,
     )
 
     for img_path in args.images:

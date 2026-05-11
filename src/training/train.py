@@ -22,9 +22,13 @@ from src.data.samplers import (
     MPerClassSampler,
     load_hn_map,
 )
-from src.data.transforms import train_transforms, val_transforms
+from src.data.transforms import (
+    train_transforms, val_transforms,
+    train_transforms_dinov2, val_transforms_dinov2,
+)
 from src.losses.proxynca_hn_pp import ProxyNCAHNPPLoss
 from src.losses.proxynca_pp import ProxyNCAPPLoss
+from src.models.embedder_dinov2 import build_dinov2_embedder
 from src.models.embedder_vit import build_vit_embedder
 from src.models.proxy_head import ProxyHead
 from src.training.optim import build_optimizer
@@ -32,6 +36,26 @@ from src.training.optim import build_optimizer
 ANN = Path("data/processed/openlogodet3k/annotations.parquet")
 SPLITS = Path("data/processed/openlogodet3k/splits")
 CKPT = Path("checkpoints")
+
+_DINOV2_BACKBONES = {"dinov2_vitb14", "dinov2"}
+
+
+def _build_embedder(cfg: dict, device: torch.device) -> nn.Module:
+    backbone = cfg.get("backbone", "vit_b32_openai")
+    freeze_blocks = cfg.get("freeze_blocks", 0)
+    embed_dim = cfg["embed_dim"]
+    input_size = cfg["input_size"]
+    if backbone in _DINOV2_BACKBONES:
+        return build_dinov2_embedder(embed_dim, input_size, freeze_blocks).to(device)
+    return build_vit_embedder(embed_dim, input_size, freeze_blocks=freeze_blocks).to(device)
+
+
+def _get_transforms(cfg: dict):
+    backbone = cfg.get("backbone", "vit_b32_openai")
+    size = cfg["input_size"]
+    if backbone in _DINOV2_BACKBONES:
+        return train_transforms_dinov2(size), val_transforms_dinov2(size)
+    return train_transforms(size), val_transforms(size)
 
 
 def recall_at_1(embedder: nn.Module, loader: DataLoader, device: torch.device) -> float:
@@ -69,13 +93,14 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
     split_prefix = "open" if mode == "open_set" else "closed"
 
     # ── Datasets ──────────────────────────────────────────────────────────
+    t_train, t_val = _get_transforms(cfg)
     train_ds = LogoDataset.from_split(
         ANN, SPLITS / f"{split_prefix}_train.json",
-        transform=train_transforms(cfg["input_size"]), mode=mode,
+        transform=t_train, mode=mode,
     )
     val_ds = LogoDataset.from_split(
         ANN, SPLITS / f"{split_prefix}_val.json",
-        transform=val_transforms(cfg["input_size"]), mode=mode,
+        transform=t_val, mode=mode,
     )
 
     k = cfg["training"]["k"]
@@ -102,10 +127,7 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
 
     # ── Model ─────────────────────────────────────────────────────────────
     # freeze_blocks=0 = full fine-tune of all 12 blocks; any value > 0 degrades accuracy.
-    freeze_blocks = cfg.get("freeze_blocks", 0)
-    embedder = build_vit_embedder(
-        cfg["embed_dim"], cfg["input_size"], freeze_blocks=freeze_blocks
-    ).to(device)
+    embedder = _build_embedder(cfg, device)
 
     if "init_from" in cfg and Path(cfg["init_from"]).exists():
         state = torch.load(cfg["init_from"], map_location=device)

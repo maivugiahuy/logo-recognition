@@ -73,7 +73,15 @@ def _ensure_openset_test_parquet() -> Path:
     return out
 
 
-def run_all(ckpt_path: str = CKPT, split: str = "all", ckpt_label: str = None) -> dict:
+def run_all(
+    ckpt_path: str = CKPT,
+    split: str = "all",
+    ckpt_label: str = None,
+    backbone: str = "vit_b32_openai",
+    qe_enabled: bool = False,
+    qe_k: int = 5,
+    qe_alpha: float = 3.0,
+) -> dict:
     """Run evaluation.
     split: 'all' | 'closedset' | 'openset'
     ckpt_label: label written to CSV 'checkpoint' column (defaults to ckpt_path)
@@ -106,6 +114,10 @@ def run_all(ckpt_path: str = CKPT, split: str = "all", ckpt_label: str = None) -
             ann_parquet=parquet,
             split_json=None,
             mode=cfg["mode"],
+            backbone=backbone,
+            qe_enabled=qe_enabled,
+            qe_k=qe_k,
+            qe_alpha=qe_alpha,
         )
         all_results[name] = results
 
