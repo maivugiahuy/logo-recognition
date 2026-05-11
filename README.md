@@ -23,7 +23,7 @@
 | | ViT-B/32 | DINOv2-B/14 |
 |---|---|---|
 | Pretrain | OpenAI CLIP (image-text) | Self-supervised DINO v2 (LVD-142M) |
-| Input | 160×160 | 224×224 |
+| Input | 160×160 | 168×168 |
 | Patch size | 32 | 14 |
 | Trunk output | 512-d | 768-d |
 | FC head | 512→128 | 768→128 |
@@ -317,7 +317,7 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 | Param | Value |
 |---|---|
 | Backbone | DINOv2-B/14, facebookresearch pretrained |
-| Input size | 224×224 (patch 14, 16×16 grid) |
+| Input size | 168×168 (patch 14, 12×12 grid) |
 | Normalization | ImageNet mean/std |
 | Embedding dim | 128 |
 | Temperature σ | 0.06 |

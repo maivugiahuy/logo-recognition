@@ -1,7 +1,7 @@
 # Phase A: open-set DINOv2-B/14 + ProxyNCA++
 mode: open_set
 backbone: dinov2_vitb14
-input_size: 224        # must be divisible by patch size 14; 224 = 16×16 grid
+input_size: 168        # 168/14=12 → 12×12=144 patches (vs 224→256 patches which OOMs at batch 512)
 embed_dim: 128
 
 optimizer:
@@ -26,8 +26,8 @@ early_stopping_patience: 5
 
 training:
   epochs: 50
-  batch_size: 512   # k=64, m=8
-  k: 64
+  batch_size: 256   # k=32, m=8 — reduced from 512 to fit DINOv2's larger activations
+  k: 32
   m: 8
 
 amp: true

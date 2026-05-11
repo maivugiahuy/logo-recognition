@@ -83,7 +83,7 @@ if __name__ == "__main__":
 
     setup_logging(__file__)
     print("Loading pipeline...")
-    default_input_size = 224 if args.backbone == "dinov2_vitb14" else 160
+    default_input_size = 168 if args.backbone == "dinov2_vitb14" else 160
     input_size = args.input_size if args.input_size is not None else default_input_size
 
     pipeline = LogoRecognitionPipeline(
