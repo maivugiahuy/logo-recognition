@@ -42,7 +42,7 @@ loss:
 
 hn_mining:
   map_path: data/processed/hn_map.json
-  alpha1: 0.05
+  alpha1: 0.01
   alpha2: 0.35
   levenshtein_min: 2
 
