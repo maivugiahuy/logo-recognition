@@ -64,10 +64,10 @@ if __name__ == "__main__":
     parser.add_argument("--gallery", default="openlogodet3k",
                         help="Gallery name: 'openlogodet3k' (eval, default) or 'new_classes' (user-added via add_classes.py)")
     parser.add_argument("--backbone", default="vit_b32_openai",
-                        choices=["vit_b32_openai", "dinov2_vitb14", "vit_s16"],
+                        choices=["vit_b32_openai", "dinov2_vitb14", "dinov3_vitb16"],
                         help="Embedder backbone (default: vit_b32_openai)")
     parser.add_argument("--input_size", type=int, default=None,
-                        help="Override input resolution (default: 160 for ViT/ViT-S, 168 for DINOv2)")
+                        help="Override input resolution (default: 160 for ViT, 168 for DINOv2)")
     parser.add_argument("--conf", type=float, default=0.1)
     parser.add_argument("--unknown_threshold", type=float, default=0.50,
                         help="Cosine similarity threshold below which logo is 'unknown' (default: 0.50)")
@@ -109,7 +109,7 @@ if __name__ == "__main__":
             vit_weight=args.vit_weight,
         )
     else:
-        default_input_size = 168 if args.backbone == "dinov2_vitb14" else 160  # vit_s16 uses 160
+        default_input_size = 168 if args.backbone == "dinov2_vitb14" else 160
         input_size = args.input_size if args.input_size is not None else default_input_size
         pipeline = LogoRecognitionPipeline(
             detector_weights=args.detector,

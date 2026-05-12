@@ -30,6 +30,7 @@ from src.losses.arcface import SubCenterArcFaceLoss
 from src.losses.proxynca_hn_pp import ProxyNCAHNPPLoss
 from src.losses.proxynca_pp import ProxyNCAPPLoss
 from src.models.embedder_dinov2 import build_dinov2_embedder
+from src.models.embedder_dinov3 import build_dinov3_embedder
 from src.models.embedder_vit import build_vit_embedder
 from src.models.proxy_head import ProxyHead, SubCenterProxyHead
 from src.training.optim import build_optimizer
@@ -39,6 +40,8 @@ SPLITS = Path("data/processed/openlogodet3k/splits")
 CKPT = Path("checkpoints")
 
 _DINOV2_BACKBONES = {"dinov2_vitb14", "dinov2"}
+_DINOV3_BACKBONES = {"dinov3_vitb16"}
+_IMAGENET_BACKBONES = _DINOV2_BACKBONES | _DINOV3_BACKBONES
 
 
 def _build_embedder(cfg: dict, device: torch.device) -> nn.Module:
@@ -48,13 +51,15 @@ def _build_embedder(cfg: dict, device: torch.device) -> nn.Module:
     input_size = cfg["input_size"]
     if backbone in _DINOV2_BACKBONES:
         return build_dinov2_embedder(embed_dim, input_size, freeze_blocks).to(device)
+    if backbone in _DINOV3_BACKBONES:
+        return build_dinov3_embedder(embed_dim, input_size, freeze_blocks).to(device)
     return build_vit_embedder(embed_dim, input_size, freeze_blocks=freeze_blocks).to(device)
 
 
 def _get_transforms(cfg: dict):
     backbone = cfg.get("backbone", "vit_b32_openai")
     size = cfg["input_size"]
-    if backbone in _DINOV2_BACKBONES:
+    if backbone in _IMAGENET_BACKBONES:
         return train_transforms_dinov2(size), val_transforms_dinov2(size)
     return train_transforms(size), val_transforms(size)
 

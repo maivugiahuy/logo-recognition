@@ -20,7 +20,7 @@ if __name__ == "__main__":
                         choices=["all", "closedset", "openset"],
                         help="Which split to evaluate (default: all)")
     parser.add_argument("--backbone", default="vit_b32_openai",
-                        choices=["vit_b32_openai", "dinov2_vitb14", "vit_s16"],
+                        choices=["vit_b32_openai", "dinov2_vitb14", "dinov3_vitb16"],
                         help="Embedder backbone matching the checkpoint (default: vit_b32_openai)")
     parser.add_argument("--ocr", action="store_true",
                         help="Enable OCR fusion: EasyOCR text fused with visual score at retrieval")

@@ -18,8 +18,8 @@ from PIL import Image
 from src.data.transforms import val_transforms, val_transforms_dinov2
 from src.detector.detect import LogoDetector
 from src.models.embedder_dinov2 import build_dinov2_embedder
+from src.models.embedder_dinov3 import build_dinov3_embedder
 from src.models.embedder_vit import build_vit_embedder
-from src.models.embedder_vit_s import build_vit_s_embedder
 from src.retrieval.gallery import load_gallery
 from src.retrieval.ocr import run_ocr, text_similarity
 
@@ -28,7 +28,8 @@ DEFAULT_EMBEDDER = "checkpoints/vit_hn.pt"
 DEFAULT_GALLERY = "openlogodet3k"
 
 _DINOV2_BACKBONES = {"dinov2_vitb14", "dinov2"}
-_VIT_S_BACKBONES = {"vit_s16"}
+_DINOV3_BACKBONES = {"dinov3_vitb16"}
+_IMAGENET_BACKBONES = _DINOV2_BACKBONES | _DINOV3_BACKBONES
 
 # Cosine similarity threshold for "unknown" decision.
 # Embeddings are L2-normalized → inner product = cosine sim ∈ [-1, 1].
@@ -58,9 +59,8 @@ class LogoRecognitionPipeline:
     ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         is_dinov2 = backbone in _DINOV2_BACKBONES
-        is_vit_s = backbone in _VIT_S_BACKBONES
-        # ViT-S uses ImageNet normalization (same as DINOv2)
-        self.transform = val_transforms(input_size) if not (is_dinov2 or is_vit_s) else val_transforms_dinov2(input_size)
+        is_dinov3 = backbone in _DINOV3_BACKBONES
+        self.transform = val_transforms_dinov2(input_size) if backbone in _IMAGENET_BACKBONES else val_transforms(input_size)
         self.top_k = top_k
         self.unknown_threshold = unknown_threshold
         self.ocr_enabled = ocr_enabled
@@ -72,8 +72,8 @@ class LogoRecognitionPipeline:
 
         if is_dinov2:
             embedder = build_dinov2_embedder(embed_dim, input_size, freeze_blocks=0).to(self.device)
-        elif is_vit_s:
-            embedder = build_vit_s_embedder(embed_dim, input_size).to(self.device)
+        elif is_dinov3:
+            embedder = build_dinov3_embedder(embed_dim, input_size, freeze_blocks=0).to(self.device)
         else:
             embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(self.device)
         state = torch.load(embedder_ckpt, map_location=self.device)

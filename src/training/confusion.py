@@ -10,6 +10,7 @@ from tqdm import tqdm
 from src.data.dataset import LogoDataset
 from src.data.transforms import val_transforms, val_transforms_dinov2
 from src.models.embedder_dinov2 import build_dinov2_embedder
+from src.models.embedder_dinov3 import build_dinov3_embedder
 from src.models.embedder_vit import build_vit_embedder
 from src.models.proxy_head import ProxyHead, SubCenterProxyHead
 
@@ -17,6 +18,7 @@ ANN = Path("data/processed/openlogodet3k/annotations.parquet")
 SPLITS = Path("data/processed/openlogodet3k/splits")
 
 _DINOV2_BACKBONES = {"dinov2_vitb14", "dinov2"}
+_IMAGENET_BACKBONES = _DINOV2_BACKBONES | {"dinov3_vitb16"}
 
 
 def build_confusion_matrix(
@@ -35,6 +37,7 @@ def build_confusion_matrix(
     is_dinov2 = backbone in _DINOV2_BACKBONES
     if input_size is None:
         input_size = 168 if is_dinov2 else 160
+    is_imagenet = backbone in _IMAGENET_BACKBONES
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -42,7 +45,7 @@ def build_confusion_matrix(
     state = torch.load(ckpt_path, map_location=device)
     num_classes = state["proxy"]["proxies"].shape[0]
 
-    transform = val_transforms_dinov2(input_size) if is_dinov2 else val_transforms(input_size)
+    transform = val_transforms_dinov2(input_size) if is_imagenet else val_transforms(input_size)
     train_ds = LogoDataset.from_split(
         ANN, SPLITS / "open_train.json",
         transform=transform, mode="open_set",
@@ -57,6 +60,8 @@ def build_confusion_matrix(
 
     if is_dinov2:
         embedder = build_dinov2_embedder(embed_dim, input_size, freeze_blocks=freeze_blocks).to(device)
+    elif backbone in {"dinov3_vitb16"}:
+        embedder = build_dinov3_embedder(embed_dim, input_size, freeze_blocks=freeze_blocks).to(device)
     else:
         embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=freeze_blocks).to(device)
     embedder.load_state_dict(state["embedder"])
