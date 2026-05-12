@@ -46,16 +46,12 @@ def _embed_dataset(
     """Returns (embs, class_names, min_sides)."""
     loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=4)
     all_embs, all_labels = [], []
-    t0 = time.time()
     with torch.no_grad():
         for imgs, labels in tqdm(loader, desc="Embedding", leave=False):
             embs = embedder(imgs.to(device)).cpu().numpy()
             all_embs.append(embs)
             all_labels.extend(labels.tolist())
     embs = np.concatenate(all_embs).astype("float32")
-    elapsed = time.time() - t0
-    n = len(embs)
-    print(f"  {'embed':15s}: {n} crops  {elapsed:.1f}s  ({1000*elapsed/n:.2f} ms/crop)")
     # Map idx→name
     idx_to_cls = {v: k for k, v in ds.class_to_idx.items()}
     class_names = [idx_to_cls[l] for l in all_labels]
@@ -98,84 +94,20 @@ def query_vs_gallery(
 
 
 
-def _rerank_k_reciprocal(
-    top_scores: np.ndarray,
-    top_indices: np.ndarray,
-    g_embs: np.ndarray,
-    g_index: faiss.Index,
-    k1: int = 20,
-    lambda_val: float = 0.3,
-) -> np.ndarray:
-    """Local k-reciprocal re-ranking (Zhong et al. 2017). Returns best gallery index per query."""
-    Q, K = top_indices.shape
-    k1 = min(k1, K, g_index.ntotal)
-    unique_cands = np.unique(top_indices)
-    _, g2g_idx = g_index.search(g_embs[unique_cands], min(k1, g_index.ntotal))
-    cand_to_pos = {int(c): i for i, c in enumerate(unique_cands)}
-
-    best_indices = np.empty(Q, dtype=np.int64)
-    for qi in range(Q):
-        R_q = set(top_indices[qi, :k1].tolist())
-        R_q_star = set(R_q)
-        for p in R_q:
-            pos = cand_to_pos.get(int(p))
-            if pos is None:
-                continue
-            R_p = set(g2g_idx[pos].tolist())
-            if len(R_q & R_p) >= (2.0 / 3.0) * len(R_p):
-                R_q_star |= R_p
-        best_score, best_idx = -1.0, int(top_indices[qi, 0])
-        for s, g_idx in zip(top_scores[qi], top_indices[qi]):
-            g_idx = int(g_idx)
-            pos = cand_to_pos.get(g_idx)
-            R_g = set(g2g_idx[pos].tolist()) if pos is not None else set()
-            jaccard = len(R_q_star & R_g) / max(len(R_q_star | R_g), 1)
-            fused = (1 - lambda_val) * float(s) + lambda_val * jaccard
-            if fused > best_score:
-                best_score, best_idx = fused, g_idx
-        best_indices[qi] = best_idx
-    return best_indices
-
-
 def compute_recall_at_1(
     q_embs: np.ndarray,
     q_labels: list[str],
     g_embs: np.ndarray,
     g_labels: list[str],
     all_vs_all: bool = False,
-    rerank: bool = False,
-    rerank_k: int = 50,
-    rerank_k1: int = 20,
-    rerank_lambda: float = 0.3,
-    _label: str = "",
 ) -> float:
-    """
-    Compute recall@1.
-    If all_vs_all=True, q==g and we take 2nd-nearest neighbor.
-    If rerank=True, apply k-reciprocal re-ranking (Zhong et al. 2017).
-    """
+    """Compute recall@1. If all_vs_all=True, q==g and we take 2nd-nearest neighbor."""
     index = faiss.IndexFlatIP(q_embs.shape[1])
     index.add(g_embs)
     nq = len(q_labels)
 
-    if rerank and not all_vs_all:
-        k_search = min(rerank_k, index.ntotal)
-        t0 = time.time()
-        scores_mat, indices_mat = index.search(q_embs, k_search)
-        nn_idx = _rerank_k_reciprocal(scores_mat, indices_mat, g_embs, index,
-                                      k1=rerank_k1, lambda_val=rerank_lambda)
-        elapsed = time.time() - t0
-        tag = f"rerank{' ' + _label if _label else ''}"
-        print(f"  {tag:15s}: {nq} queries  {elapsed:.1f}s  ({1000*elapsed/nq:.2f} ms/query)")
-        correct = sum(g_labels[nn_idx[i]] == q_labels[i] for i in range(nq))
-        return correct / nq
-
     k = 2 if all_vs_all else 1
-    t0 = time.time()
     _, nn_indices = index.search(q_embs, k)  # (Q, k)
-    elapsed = time.time() - t0
-    tag = f"retrieval{' ' + _label if _label else ''}"
-    print(f"  {tag:15s}: {nq} queries  {elapsed:.1f}s  ({1000*elapsed/nq:.2f} ms/query)")
     nn_idx = nn_indices[:, -1]  # last column: 2nd-NN when all_vs_all, else 1st
     correct = sum(
         g_labels[nn_idx[i]] == q_labels[i]
@@ -192,10 +124,6 @@ def evaluate(
     backbone: str = "vit_b32_openai",
     embed_dim: int = 128,
     input_size: int | None = None,
-    rerank: bool = False,
-    rerank_k: int = 50,
-    rerank_k1: int = 20,
-    rerank_lambda: float = 0.3,
 ) -> dict[str, float]:
     """Full evaluation returning recall@1 for all subsets."""
     is_dinov2 = backbone in _DINOV2_BACKBONES
@@ -209,7 +137,7 @@ def evaluate(
     elif is_dinov3:
         embedder = build_dinov3_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
     else:
-        embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
+        embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0, backbone=backbone).to(device)
     state = torch.load(ckpt_path, map_location=device)
     embedder.load_state_dict(state["embedder"])
     embedder.eval()
@@ -218,7 +146,11 @@ def evaluate(
     ds = LogoDataset.from_split(
         ann_parquet, split_json, transform=transform, mode=mode
     )
+    t0 = time.time()
     embs, class_names, min_sides = _embed_dataset(ds, embedder, device)
+    embed_s = time.time() - t0
+    n_crops = len(embs)
+    print(f"  embed          : {n_crops} crops  {embed_s:.1f}s  ({1000*embed_s/n_crops:.2f} ms/crop)")
 
     # Compute query indices for small/large subsets
     rng = random.Random(SEED)
@@ -232,16 +164,17 @@ def evaluate(
         n_q = min(N_QUERY_PER_CLASS, max(1, len(shuffled) - 1), len(shuffled) // 3 + 1)
         query_idx.extend(shuffled[:n_q])
 
-    rerank_args = dict(rerank=rerank, rerank_k=rerank_k, rerank_k1=rerank_k1,
-                       rerank_lambda=rerank_lambda)
-
-    # all-vs-all (rerank skipped — self-exclusion incompatible)
-    ava = compute_recall_at_1(embs, class_names, embs, class_names, all_vs_all=True,
-                              _label="all_vs_all")
+    t1 = time.time()
+    ava = compute_recall_at_1(embs, class_names, embs, class_names, all_vs_all=True)
+    ava_s = time.time() - t1
+    print(f"  retrieval all_vs_all: {n_crops} queries  {ava_s:.1f}s  ({1000*ava_s/n_crops:.2f} ms/query)")
 
     # query-vs-gallery
     q_embs, q_labels, g_embs, g_labels = query_vs_gallery(embs, class_names)
-    qvg = compute_recall_at_1(q_embs, q_labels, g_embs, g_labels, **rerank_args, _label="qvg")
+    t1 = time.time()
+    qvg = compute_recall_at_1(q_embs, q_labels, g_embs, g_labels)
+    qvg_s = time.time() - t1
+    print(f"  retrieval qvg  : {len(q_labels)} queries  {qvg_s:.1f}s  ({1000*qvg_s/len(q_labels):.2f} ms/query)")
 
     # text subset (Q-vs-G)
     text_mask = [cls.endswith("_text") for cls in q_labels]
@@ -249,8 +182,10 @@ def evaluate(
         t_idx = [i for i, m in enumerate(text_mask) if m]
         t_embs = q_embs[t_idx]
         t_labels = [q_labels[i] for i in t_idx]
-        text_r = compute_recall_at_1(t_embs, t_labels, g_embs, g_labels,
-                                     **rerank_args, _label="text")
+        t1 = time.time()
+        text_r = compute_recall_at_1(t_embs, t_labels, g_embs, g_labels)
+        text_s = time.time() - t1
+        print(f"  retrieval text : {len(t_labels)} queries  {text_s:.1f}s  ({1000*text_s/len(t_labels):.2f} ms/query)")
     else:
         text_r = float("nan")
 
@@ -265,7 +200,11 @@ def evaluate(
             return float("nan")
         se = q_embs[idx]
         sl = [q_labels[i] for i in idx]
-        return compute_recall_at_1(se, sl, g_embs, g_labels, **rerank_args, _label=label)
+        t1 = time.time()
+        r = compute_recall_at_1(se, sl, g_embs, g_labels)
+        s = time.time() - t1
+        print(f"  retrieval {label}: {len(sl)} queries  {s:.1f}s  ({1000*s/len(sl):.2f} ms/query)")
+        return r
 
     small_r = subset_recall(small_mask, "small")
     large_r = subset_recall(large_mask, "large")
@@ -323,8 +262,16 @@ def evaluate_ensemble(
         ann_parquet, split_json, transform=val_transforms_dinov2(dino_input_size), mode=mode
     )
 
+    t0 = time.time()
     vit_embs, class_names, min_sides = _embed_dataset(vit_ds, vit_embedder, device)
+    vit_embed_s = time.time() - t0
+    n_crops = len(vit_embs)
+    print(f"  embed (vit)    : {n_crops} crops  {vit_embed_s:.1f}s  ({1000*vit_embed_s/n_crops:.2f} ms/crop)")
+    t0 = time.time()
     dino_embs, _, _ = _embed_dataset(dino_ds, dino_embedder, device)
+    dino_embed_s = time.time() - t0
+    print(f"  embed (dino)   : {n_crops} crops  {dino_embed_s:.1f}s  ({1000*dino_embed_s/n_crops:.2f} ms/crop)")
+    embed_s = vit_embed_s + dino_embed_s
 
     # Shared query/gallery split (same seed → same indices for both backbones)
     rng = random.Random(SEED)
@@ -354,7 +301,6 @@ def evaluate_ensemble(
         dino_all = faiss.IndexFlatIP(embed_dim)
         dino_all.add(dino_embs)
         k = min(ensemble_top_k + 1, vit_all.ntotal)
-        t0 = time.time()
         vit_s_a, vit_i_a = vit_all.search(vit_embs, k)
         dino_s_a, dino_i_a = dino_all.search(dino_embs, k)
         dinov2_w = 1.0 - vit_weight
@@ -381,11 +327,12 @@ def evaluate_ensemble(
                 for l in all_lbls
             }
             correct += max(fused, key=fused.__getitem__) == class_names[qi]
-        elapsed = time.time() - t0
-        print(f"  {'all_vs_all':15s}: {N} queries  {elapsed:.1f}s  ({1000*elapsed/N:.2f} ms/query)")
         return correct / N
 
+    t1 = time.time()
     ava = _ensemble_ava_recall()
+    ava_s = time.time() - t1
+    print(f"  retrieval all_vs_all: {n_crops} queries  {ava_s:.1f}s  ({1000*ava_s/n_crops:.2f} ms/query)")
 
     vit_index = faiss.IndexFlatIP(embed_dim)
     vit_index.add(g_vit)
@@ -427,15 +374,35 @@ def evaluate_ensemble(
             correct += best == ql[qi]
         return correct / len(ql)
 
+    t1 = time.time()
     qvg = _ensemble_recall()
+    qvg_s = time.time() - t1
+    print(f"  retrieval qvg  : {len(q_labels)} queries  {qvg_s:.1f}s  ({1000*qvg_s/len(q_labels):.2f} ms/query)")
 
     text_mask = [cls.endswith("_text") for cls in q_labels]
-    text_r = _ensemble_recall(text_mask) if any(text_mask) else float("nan")
+    if any(text_mask):
+        t_idx = [i for i, m in enumerate(text_mask) if m]
+        t1 = time.time()
+        text_r = _ensemble_recall(text_mask)
+        text_s = time.time() - t1
+        print(f"  retrieval text : {len(t_idx)} queries  {text_s:.1f}s  ({1000*text_s/len(t_idx):.2f} ms/query)")
+    else:
+        text_r = float("nan")
 
     small_mask = [s < SMALL_THRESHOLD for s in q_min_sides]
     large_mask = [not m for m in small_mask]
+    small_idx = [i for i, m in enumerate(small_mask) if m]
+    large_idx = [i for i, m in enumerate(large_mask) if m]
+
+    t1 = time.time()
     small_r = _ensemble_recall(small_mask)
+    small_s = time.time() - t1
+    print(f"  retrieval small: {len(small_idx)} queries  {small_s:.1f}s  ({1000*small_s/max(1,len(small_idx)):.2f} ms/query)")
+
+    t1 = time.time()
     large_r = _ensemble_recall(large_mask)
+    large_s = time.time() - t1
+    print(f"  retrieval large: {len(large_idx)} queries  {large_s:.1f}s  ({1000*large_s/max(1,len(large_idx)):.2f} ms/query)")
 
     results = {
         "all_vs_all": ava,

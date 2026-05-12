@@ -79,10 +79,6 @@ def run_all(
     split: str = "all",
     ckpt_label: str = None,
     backbone: str = "vit_b32_openai",
-    rerank: bool = False,
-    rerank_k: int = 50,
-    rerank_k1: int = 20,
-    rerank_lambda: float = 0.3,
 ) -> dict:
     """Run evaluation.
     split: 'all' | 'closedset' | 'openset'
@@ -118,13 +114,8 @@ def run_all(
             split_json=None,
             mode=cfg["mode"],
             backbone=backbone,
-            rerank=rerank,
-            rerank_k=rerank_k,
-            rerank_k1=rerank_k1,
-            rerank_lambda=rerank_lambda,
         )
-        elapsed = time.time() - t0
-        print(f"  {'elapsed':15s}: {elapsed:.1f}s")
+        print(f"  elapsed        : {time.time() - t0:.1f}s")
         all_results[name] = results
 
     return all_results

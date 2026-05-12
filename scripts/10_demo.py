@@ -114,15 +114,17 @@ if __name__ == "__main__":
 
     for img_path in args.images:
         print(f"\nImage: {img_path}")
-        results = pipeline.predict(img_path)
+        results, timing = pipeline.predict(img_path, return_timing=True)
         if not results:
-            print("  No logos detected.")
+            print(f"  No logos detected.  det:{timing['detection_ms']:.1f} ms")
             continue
         for r in results:
             b = r["box"]
             status = "UNKNOWN" if r["is_unknown"] else r["brand"]
             print(f"  box [{b['x1']:.0f},{b['y1']:.0f},{b['x2']:.0f},{b['y2']:.0f}] "
                   f"det:{b['conf']:.4f}  → brand: {status}  sim:{r['score']:.4f}")
+        total_ms = timing['detection_ms'] + timing['recognition_ms']
+        print(f"  det:{timing['detection_ms']:.1f} ms  rec:{timing['recognition_ms']:.1f} ms  total:{total_ms:.1f} ms  ({len(results)} logos)")
 
         if args.save_crops:
             crop_dir = Path(args.save_dir) if args.save_dir else Path("results/crops")

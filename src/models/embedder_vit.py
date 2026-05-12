@@ -14,13 +14,13 @@ import torch.nn.functional as F
 
 
 class ViTEmbedder(nn.Module):
-    def __init__(self, embed_dim: int = 128, input_size: int = 160):
+    def __init__(self, embed_dim: int = 128, input_size: int = 160, model_name: str = "ViT-B-16"):
         super().__init__()
         self.input_size = input_size
 
         # Load trunk (vision tower only)
         clip_model, _, _ = open_clip.create_model_and_transforms(
-            "ViT-B-16", pretrained="openai"
+            model_name, pretrained="openai"
         )
         self.trunk = clip_model.visual
 
@@ -61,12 +61,20 @@ class ViTEmbedder(nn.Module):
         return out
 
 
+_BACKBONE_TO_MODEL = {
+    "vit_b16_openai": "ViT-B-16",
+    "vit_b32_openai": "ViT-B-32",
+}
+
+
 def build_vit_embedder(
     embed_dim: int = 128,
     input_size: int = 160,
-    freeze_blocks: int = 8,  # freeze first N of 12 transformer blocks (~60% less backward)
+    freeze_blocks: int = 8,
+    backbone: str = "vit_b16_openai",
 ) -> ViTEmbedder:
-    model = ViTEmbedder(embed_dim=embed_dim, input_size=input_size)
+    model_name = _BACKBONE_TO_MODEL.get(backbone, "ViT-B-16")
+    model = ViTEmbedder(embed_dim=embed_dim, input_size=input_size, model_name=model_name)
     if freeze_blocks > 0:
         blocks = model.trunk.transformer.resblocks
         for i, block in enumerate(blocks):

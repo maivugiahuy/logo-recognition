@@ -20,7 +20,7 @@ if __name__ == "__main__":
                         choices=["all", "closedset", "openset"],
                         help="Which split to evaluate (default: all)")
     parser.add_argument("--backbone", default="vit_b16_openai",
-                        choices=["vit_b16_openai", "dinov2_vitb14", "dinov3_vitb16"],
+                        choices=["vit_b16_openai", "vit_b32_openai", "dinov2_vitb14", "dinov3_vitb16"],
                         help="Embedder backbone matching the checkpoint (default: vit_b16_openai)")
     # Ensemble
     parser.add_argument("--ensemble", action="store_true",
@@ -36,22 +36,11 @@ if __name__ == "__main__":
                         help="ViT score weight in ensemble fusion (default: 0.5)")
     parser.add_argument("--ensemble_top_k", type=int, default=20,
                         help="Top-k per backbone for ensemble fusion (default: 20)")
-    # K-reciprocal re-ranking
-    parser.add_argument("--rerank", action="store_true",
-                        help="Enable k-reciprocal re-ranking (Zhong et al. 2017)")
-    parser.add_argument("--rerank_k", type=int, default=50,
-                        help="Initial top-k for re-ranking candidates (default: 50)")
-    parser.add_argument("--rerank_k1", type=int, default=20,
-                        help="Reciprocal neighbor set size (default: 20)")
-    parser.add_argument("--rerank_lambda", type=float, default=0.3,
-                        help="Weight for Jaccard score vs cosine (default: 0.3)")
     args = parser.parse_args()
     setup_logging(__file__)
 
-    rerank_args = dict(rerank=args.rerank, rerank_k=args.rerank_k,
-                       rerank_k1=args.rerank_k1, rerank_lambda=args.rerank_lambda)
-
     t_total = time.time()
+
     if args.ensemble:
         from src.eval.recall_at_1 import evaluate_ensemble
         from pathlib import Path
@@ -78,14 +67,14 @@ if __name__ == "__main__":
                 vit_weight=args.vit_weight,
                 ensemble_top_k=args.ensemble_top_k,
             )
-            print(f"  {'elapsed':15s}: {time.time() - t0:.1f}s")
+            print(f"  elapsed        : {time.time() - t0:.1f}s")
     else:
         ckpts = [args.ckpt] if args.ckpt else DEFAULT_CKPTS
         all_results = {}
         for ckpt in ckpts:
             print(f"\n{'#'*60}")
             print(f"# Checkpoint: {ckpt}  Backbone: {args.backbone}")
-            res = run_all(ckpt, split=args.split, ckpt_label=ckpt, backbone=args.backbone,
-                          **rerank_args)
+            res = run_all(ckpt, split=args.split, ckpt_label=ckpt, backbone=args.backbone)
             all_results[ckpt] = res
+
     print(f"\nTotal elapsed: {time.time() - t_total:.1f}s")

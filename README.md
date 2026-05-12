@@ -2,74 +2,83 @@
 
 ## What gets trained
 
-### ViT-B/32 pipeline (baseline)
+### ViT-B/16 pipeline (main)
 
 | Component | Loss | Data split | Output |
 |---|---|---|---|
-| ViT-B/32 embedder Phase A | ProxyNCA++ | Open-set train classes (~1600) | `checkpoints/vit_base.pt` |
-| ViT-B/32 embedder Phase C | ProxyNCAHN++ | Closed-set train classes (~1900) | `checkpoints/vit_hn.pt` |
+| ViT-B/16 embedder Phase A | ArcFace (K=1) | Open-set train classes (~1600) | `checkpoints/vit_b16_arcface_base.pt` |
+| ViT-B/16 embedder Phase C | Sub-center ArcFace (K=3) | Closed-set train classes (~1900) | `checkpoints/vit_b16_arcface_hn.pt` |
 | YOLOv8m detector | YOLO obj det loss | LogoDet-3K + OpenLogo boxes (class-agnostic) | `runs/detect/checkpoints/yolov8_logo/weights/best.pt` |
 
-### DINOv2-B/14 pipeline (modification)
+### DINOv3-B/16 pipeline (modification)
 
 | Component | Loss | Data split | Output |
 |---|---|---|---|
-| DINOv2-B/14 embedder Phase A | ProxyNCA++ | Open-set train classes (~1600) | `checkpoints/dinov2_base.pt` |
-| DINOv2-B/14 embedder Phase C | ProxyNCAHN++ | Closed-set train classes (~1900) | `checkpoints/dinov2_hn.pt` |
+| DINOv3-B/16 embedder Phase A | ArcFace (K=1) | Open-set train classes (~1600) | `checkpoints/dinov3_arcface_base.pt` |
 | YOLOv8m detector | shared with ViT pipeline | — | `runs/detect/checkpoints/yolov8_logo/weights/best.pt` |
 
 ## Backbone comparison
 
-| | ViT-B/32 | DINOv2-B/14 |
-|---|---|---|
-| Pretrain | OpenAI CLIP (image-text) | Self-supervised DINO v2 (LVD-142M) |
-| Input | 160×160 | 168×168 |
-| Patch size | 32 | 14 |
-| Trunk output | 512-d | 768-d |
-| FC head | 512→128 | 768→128 |
-| Normalization | CLIP mean/std | ImageNet mean/std |
-| Trunk params | ~86M | ~86M |
+| | ViT-B/16 (main) | DINOv3-B/16 | ViT-B/32 (baseline) |
+|---|---|---|---|
+| Pretrain | OpenAI CLIP (image-text) | Self-supervised DINOv3 (LVD-1.689B) | OpenAI CLIP (image-text) |
+| Input | 160×160 | 160×160 | 160×160 |
+| Patch size | 16 | 16 | 32 |
+| Trunk output | 512-d | 768-d | 512-d |
+| FC head | 512→128 | 768→128 | 512→128 |
+| Normalization | CLIP mean/std | ImageNet mean/std | CLIP mean/std |
+| Patches at 160px | 10×10 = 100 | 10×10 = 100 | 5×5 = 25 |
 
 ## Modifications over base paper
 
-1. **DINOv2-B/14 backbone** — swaps CLIP ViT-B/32 for DINOv2, trained with same ProxyNCA++/ProxyNCAHN++ losses. Self-supervised pretraining optimized for visual similarity rather than image-text alignment.
+1. **ViT-B/16 backbone** — finer 16×16 patches (100 tokens vs 25 at 160px) vs ViT-B/32 baseline. Same OpenAI CLIP pretraining.
 
-2. **α-weighted Query Expansion (αQE)** — post-retrieval re-ranking. After initial FAISS search, averages query vector with top-k gallery neighbors weighted by `score^α`, then re-queries. Enabled by default in inference (`qe_k=5`, `qe_alpha=3.0`). Adds <1ms per query.
+2. **ArcFace loss** — replaces ProxyNCA++ with ArcFace (K=1, Phase A) and Sub-center ArcFace (K=3, Phase C). Angular margin enforces tighter intra-class clusters.
+
+3. **DINOv3-B/16 backbone** — swaps CLIP ViT for DINOv3 pretrained on LVD-1.689B images. Same patch size (16), same input (160×160), uses ImageNet normalization.
+
+4. **ViT-B/16 + DINOv3 ensemble** — score-level fusion: `fused = vit_weight × vit_score + (1 − vit_weight) × dino_score`. Run with `--ensemble` flag.
 
 ## Results
 
-### v2 — LogoDet-3K + OpenLogo (ViT-B/32)
+### ViT-B/16 ArcFace HN (main model)
+
+| Split | Q-vs-G | All-vs-All | Text logos | Small logos | Large logos |
+|---|---|---|---|---|---|
+| Closed-set | **0.9760** | **0.9759** | **0.9231** | **0.9671** | **0.9824** |
+| Open-set | **0.9780** | **0.9817** | **0.9255** | **0.9647** | **0.9875** |
+
+### ViT-B/16 + DINOv3 Ensemble
+
+| Split | Q-vs-G | Text logos | Small logos | Large logos |
+|---|---|---|---|---|
+| Closed-set | **0.9797** | **0.9538** | **0.9741** | **0.9836** |
+| Open-set | **0.9848** | **0.9255** | **0.9771** | **0.9904** |
+
+### Backbone comparison (closed-set)
+
+| Model | Q-vs-G | All-vs-All |
+|---|---|---|
+| ViT-B/32 ProxyNCA HN | 0.9623 | 0.9646 |
+| ViT-B/32 ArcFace HN | 0.9694 | 0.9699 |
+| DINOv3-B/16 ArcFace Phase A | 0.9563 | 0.9640 |
+| **ViT-B/16 ArcFace HN** | **0.9760** | **0.9759** |
+| ViT-B/16 + DINOv3 Ensemble | **0.9797** | — |
+
+### Detector
 
 | Metric | Value |
 |---|---|
-| Phase A val recall@1 | **0.9651** |
-| Phase C val recall@1 | **0.9369** |
 | YOLO AP@0.5 (val) | **0.653** |
-| Eval Q-vs-G recall@1 | **0.9331** |
-| Eval All-vs-All recall@1 | **0.9445** |
-| Eval small logo Q-vs-G | **0.9134** |
-| Eval large logo Q-vs-G | **0.9485** |
-
-### v1 — LogoDet-3K only
-
-| Metric | Value |
-|---|---|
-| Phase A val recall@1 | **0.9675** |
-| Phase C val recall@1 | **0.9356** |
-| YOLO AP@0.5 (test) | **0.6498** |
-| Eval Q-vs-G recall@1 | **0.9340** |
-| Eval All-vs-All recall@1 | **0.9414** |
-| Eval small logo Q-vs-G | **0.9099** |
-| Eval large logo Q-vs-G | **0.9498** |
 
 ## Speed optimizations applied
 
 - AMP mixed precision (bfloat16) — ~2× faster
 - `torch.compile` — **disabled on Windows** (Triton not supported on Windows)
 - `freeze_blocks=0` — unfreeze all 12 ViT blocks (required for accuracy)
-- `num_workers=8` + `persistent_workers=True`
+- `num_workers=10` + `persistent_workers=True`
 - TF32 enabled on Ampere/Ada (`allow_tf32=True`)
-- Early stopping patience=5 instead of fixed epochs
+- Early stopping patience=8 (Phase A), 6 (Phase C)
 
 ---
 
@@ -153,57 +162,57 @@ Verifies loss decreases over a few batches. Recall@1 = 0.0 at start is expected.
 
 ### Step 3 — Phase A: base embedder
 
-**ViT-B/32:**
+**ViT-B/16 (main):**
+```bash
+python scripts/03_train_base.py --config configs/base_arcface_vit.yaml --ckpt vit_b16_arcface_base.pt
+```
+Output: `checkpoints/vit_b16_arcface_base.pt`
+
+**DINOv3-B/16:**
+```bash
+python scripts/03_train_base.py --config configs/base_arcface_dinov3.yaml --ckpt dinov3_arcface_base.pt
+```
+Output: `checkpoints/dinov3_arcface_base.pt`
+
+**ViT-B/32 (baseline):**
 ```bash
 python scripts/03_train_base.py --config configs/base_vit.yaml
 ```
 Output: `checkpoints/vit_base.pt`
 
-**DINOv2-B/14:**
-```bash
-python scripts/03_train_base.py --config configs/base_dinov2.yaml --ckpt dinov2_base.pt
-```
-Output: `checkpoints/dinov2_base.pt`
-
-ProxyNCA++ on ~1600 open-set classes. Batch 512 (k=64 × m=8), max 50 epochs, AMP bfloat16, ~16 GB VRAM.
+ArcFace on ~1600 open-set classes. Batch 512 (k=64 × m=8), max 60 epochs, AMP bfloat16, ~16 GB VRAM.
 
 ### Step 4 — Hard-negative mining
 
-**ViT-B/32:**
+**ViT-B/16:**
+```bash
+python scripts/04_mine_hn.py --ckpt checkpoints/vit_b16_arcface_base.pt --config configs/base_arcface_vit.yaml
+```
+
+**ViT-B/32 (baseline):**
 ```bash
 python scripts/04_mine_hn.py --ckpt checkpoints/vit_base.pt --config configs/base_vit.yaml
 ```
 
-**DINOv2-B/14:**
-```bash
-python scripts/04_mine_hn.py --ckpt checkpoints/dinov2_base.pt --config configs/base_dinov2.yaml
-```
-
-Finds hard-negative pairs: confusion similarity 0.05–0.35, Levenshtein distance > 2.
+Finds hard-negative pairs: confusion similarity 0.01–0.35, Levenshtein distance ≥ 2.
 
 Output: `data/processed/hn_map.json`
 
 ### Step 5 — Phase C: fine-tune with hard negatives
 
-**ViT-B/32:**
+**ViT-B/16:**
 ```bash
-python scripts/05_train_hn.py --config configs/hn_vit.yaml
+python scripts/05_train_hn.py --config configs/hn_arcface_vit.yaml --ckpt vit_b16_arcface_hn.pt
 ```
-Output: `checkpoints/vit_hn.pt`
+Output: `checkpoints/vit_b16_arcface_hn.pt`
 
-**DINOv2-B/14:**
-```bash
-python scripts/05_train_hn.py --config configs/hn_dinov2.yaml --ckpt dinov2_hn.pt
-```
-Output: `checkpoints/dinov2_hn.pt`
-
-ProxyNCAHN++ on ~1900 closed-set classes. Init from Phase A checkpoint, max 50 epochs, ~20 GB VRAM.
+Sub-center ArcFace (K=3) on ~1900 closed-set classes. Init from Phase A checkpoint, max 60 epochs, ~20 GB VRAM.
 
 ### Step 6 — Train logo detector
 ```bash
 python scripts/06_train_detector.py
 ```
-YOLOv8m, class-agnostic (1 class: "logo"), imgsz=512, batch=48, 50 epochs. Shared by both pipelines.
+YOLOv8m, class-agnostic (1 class: "logo"), imgsz=512, batch=48, 50 epochs. Shared by all pipelines.
 
 Output: `runs/detect/checkpoints/yolov8_logo/weights/best.pt`
 
@@ -212,19 +221,25 @@ Output: `runs/detect/checkpoints/yolov8_logo/weights/best.pt`
 ### Step 7 — Evaluate embedder
 
 ```bash
-# ViT (default)
-python scripts/07_eval.py                                            # both checkpoints, both splits
-python scripts/07_eval.py --split closedset
-python scripts/07_eval.py --split openset
-python scripts/07_eval.py --ckpt checkpoints/vit_base.pt
+# ViT-B/16 ArcFace HN (main)
+python scripts/07_eval.py --ckpt checkpoints/vit_b16_arcface_hn.pt --backbone vit_b16_openai
 
-# DINOv2
-python scripts/07_eval.py --ckpt checkpoints/dinov2_hn.pt --backbone dinov2_vitb14
+# ViT-B/16 ArcFace base
+python scripts/07_eval.py --ckpt checkpoints/vit_b16_arcface_base.pt --backbone vit_b16_openai
 
-# With α-weighted Query Expansion
-python scripts/07_eval.py --qe
-python scripts/07_eval.py --qe --qe_k 10 --qe_alpha 2.0
-python scripts/07_eval.py --ckpt checkpoints/dinov2_hn.pt --backbone dinov2_vitb14 --qe
+# DINOv3
+python scripts/07_eval.py --ckpt checkpoints/dinov3_arcface_base.pt --backbone dinov3_vitb16
+
+# ViT-B/32 baseline
+python scripts/07_eval.py --ckpt checkpoints/vit_hn.pt --backbone vit_b32_openai
+
+# Ensemble (ViT-B/16 + DINOv3)
+python scripts/07_eval.py --ensemble
+python scripts/07_eval.py --ensemble --vit_weight 0.6
+
+# Split-specific
+python scripts/07_eval.py --ckpt checkpoints/vit_b16_arcface_hn.pt --backbone vit_b16_openai --split closedset
+python scripts/07_eval.py --ckpt checkpoints/vit_b16_arcface_hn.pt --backbone vit_b16_openai --split openset
 ```
 Output: `results/eval_results.csv`
 
@@ -259,11 +274,14 @@ python scripts/09_add_classes.py --remove nike
 ### Step 10 — Demo
 
 ```bash
-# ViT pipeline (default)
-python scripts/10_demo.py your_image.jpg --save_dir results/
+# ViT-B/16 pipeline (main)
+python scripts/10_demo.py your_image.jpg --embedder checkpoints/vit_b16_arcface_hn.pt --backbone vit_b16_openai --save_dir results/
 
-# DINOv2 pipeline
-python scripts/10_demo.py your_image.jpg --backbone dinov2_vitb14 --embedder checkpoints/dinov2_hn.pt --save_dir results/
+# DINOv3 pipeline
+python scripts/10_demo.py your_image.jpg --embedder checkpoints/dinov3_arcface_base.pt --backbone dinov3_vitb16 --save_dir results/
+
+# Ensemble
+python scripts/10_demo.py your_image.jpg --ensemble --save_dir results/
 
 # User-added classes gallery
 python scripts/10_demo.py your_image.jpg --gallery new_classes --save_dir results/
@@ -271,14 +289,13 @@ python scripts/10_demo.py your_image.jpg --gallery new_classes --save_dir result
 # Tune unknown threshold (default 0.50)
 python scripts/10_demo.py your_image.jpg --unknown_threshold 0.65 --save_dir results/
 
-# Query Expansion options (QE on by default)
-python scripts/10_demo.py your_image.jpg --no_qe                   # disable QE
-python scripts/10_demo.py your_image.jpg --qe_k 10 --qe_alpha 2.0  # tune QE
+# Save cropped logo detections
+python scripts/10_demo.py your_image.jpg --save_crops --save_dir results/
 ```
 
-**Inference pipeline:** YOLO detect → crop → embed (160×160 ViT or 224×224 DINOv2) → α-QE → FAISS top-1 → label
+**Inference pipeline:** YOLO detect → crop → embed (160×160) → FAISS top-1 → label
 
-- Box **red** = recognized (score ≥ threshold)
+- Box colored = recognized (score ≥ threshold), color per brand
 - Box **orange** = unknown (score < threshold)
 
 ### Utility — List training classes
@@ -292,64 +309,61 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 
 ## Key hyperparameters
 
-### Phase A — ViT-B/32 (`configs/base_vit.yaml`)
+### Phase A — ViT-B/16 ArcFace (`configs/base_arcface_vit.yaml`)
 
 | Param | Value |
 |---|---|
-| Backbone | ViT-B/32, OpenAI CLIP pretrained |
+| Backbone | ViT-B/16, OpenAI CLIP pretrained |
 | Input size | 160×160 |
 | Normalization | CLIP mean/std |
 | Embedding dim | 128 |
-| Temperature σ | 0.06 |
+| ArcFace scale | 30.0 |
+| ArcFace margin | 0.5 (≈28.6°) |
+| ArcFace K | 1 (standard) |
 | Trunk LR | 2.3e-6 |
 | FC LR | 1.5e-3 |
-| Proxy LR | 71 |
+| ArcFace weight LR | 0.05 |
 | Trunk weight decay | 0.2 |
-| β2 trunk/fc | 0.98 |
-| β2 proxy | 0.999 |
 | Batch | 512 (k=64 × m=8) |
-| Max epochs | 50 |
-| Early stopping patience | 5 |
+| Max epochs | 60 |
+| Early stopping patience | 8 |
 | freeze_blocks | 0 (full fine-tune) |
 
-### Phase A — DINOv2-B/14 (`configs/base_dinov2.yaml`)
+### Phase A — DINOv3-B/16 ArcFace (`configs/base_arcface_dinov3.yaml`)
 
 | Param | Value |
 |---|---|
-| Backbone | DINOv2-B/14, facebookresearch pretrained |
-| Input size | 168×168 (patch 14, 12×12 grid) |
+| Backbone | DINOv3 ViT-B/16, LVD-1.689B pretrained |
+| Input size | 160×160 (16×16 patch → 10×10 = 100 tokens) |
 | Normalization | ImageNet mean/std |
 | Embedding dim | 128 |
-| Temperature σ | 0.06 |
+| ArcFace scale | 30.0 |
+| ArcFace margin | 0.5 |
+| ArcFace K | 1 |
 | Trunk LR | 5.0e-6 |
 | FC LR | 1.5e-3 |
-| Proxy LR | 71 |
+| ArcFace weight LR | 0.05 |
 | Trunk weight decay | 0.05 |
 | Batch | 512 (k=64 × m=8) |
-| Max epochs | 50 |
-| Early stopping patience | 5 |
+| Max epochs | 60 |
+| Early stopping patience | 8 |
 | freeze_blocks | 0 (full fine-tune) |
 
-### Phase C — ViT-B/32 (`configs/hn_vit.yaml`)
+### Phase C — ViT-B/16 Sub-center ArcFace (`configs/hn_arcface_vit.yaml`)
 
 | Param | Value |
 |---|---|
-| Init from | `checkpoints/vit_base.pt` |
-| HN α1 / α2 | 0.05 / 0.35 |
-| Levenshtein min | > 2 |
+| Init from | `checkpoints/vit_b16_arcface_base.pt` |
+| ArcFace K | 3 (sub-center — handles multi-modal brands) |
+| ArcFace scale | 30.0 |
+| ArcFace margin | 0.5 |
+| HN α1 / α2 | 0.01 / 0.35 |
+| Levenshtein min | ≥ 2 |
+| Trunk LR | 3.0e-6 |
+| FC LR | 3.0e-4 |
 | Batch | 512 (k=64 × m=8) |
-| Max epochs | 50 |
-| freeze_blocks | 0 |
-
-### Phase C — DINOv2-B/14 (`configs/hn_dinov2.yaml`)
-
-| Param | Value |
-|---|---|
-| Init from | `checkpoints/dinov2_base.pt` |
-| HN α1 / α2 | 0.05 / 0.35 |
-| Levenshtein min | > 2 |
-| Batch | 512 (k=64 × m=8) |
-| Max epochs | 50 |
+| Max epochs | 60 |
+| Early stopping patience | 6 |
 | freeze_blocks | 0 |
 
 ### Detector (`configs/detector_yolov8.yaml`)
@@ -363,15 +377,6 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 | patience | 5 |
 | cache | disk |
 
-### Query Expansion (αQE)
-
-| Param | Default | Notes |
-|---|---|---|
-| `qe_k` | 5 | Neighbors to average with query |
-| `qe_alpha` | 3.0 | Weight exponent — higher = closer neighbors dominate |
-| Enabled in demo | yes | Disable with `--no_qe` |
-| Enabled in eval | no | Enable with `--qe` |
-
 ---
 
 ## Known limitations
@@ -379,4 +384,4 @@ Reads `annotations.parquet`; outputs `class_name | n_objects | n_images` per lin
 - YOLO AP@0.5 = 0.65 — needs `imgsz: 640` or `yolov8l.pt` to improve
 - `torch.compile` disabled on Windows — loses ~15–20% speed
 - Unknown threshold (0.50) needs calibration on val set to optimize F1
-- DINOv2 results pending — ViT benchmarks above are baseline
+- DINOv3 Phase C (HN fine-tune) not yet trained — only Phase A results available

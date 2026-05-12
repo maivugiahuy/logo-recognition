@@ -8,6 +8,7 @@ End-to-end inference pipeline:
 4. FAISS IndexFlatIP → top-k retrieval
 5. Unknown threshold: if score < threshold → "unknown"
 """
+import time
 from pathlib import Path
 
 import numpy as np
@@ -104,7 +105,7 @@ class LogoRecognitionPipeline:
         scores, indices = self.index.search(query, k)
         return [(float(scores[0][i]), self.gallery_labels[int(indices[0][i])]) for i in range(k)]
 
-    def predict(self, image_path: str | Path) -> list[dict]:
+    def predict(self, image_path: str | Path, return_timing: bool = False):
         """
         Returns list of dicts:
           {
@@ -113,11 +114,16 @@ class LogoRecognitionPipeline:
             "score":      float  (cosine similarity, 0–1),
             "is_unknown": bool,
           }
+        If return_timing=True, returns (results, {"detection_ms": float, "recognition_ms": float}).
         """
         image = Image.open(image_path).convert("RGB")
-        boxes = self.detector.detect(image_path)
-        results = []
 
+        t0 = time.time()
+        boxes = self.detector.detect(image_path)
+        detection_ms = (time.time() - t0) * 1000
+
+        t0 = time.time()
+        results = []
         for box in boxes:
             crop = self._extract_crop(image, box)
             if crop is None:
@@ -137,5 +143,8 @@ class LogoRecognitionPipeline:
                 "score": score,
                 "is_unknown": is_unknown,
             })
+        recognition_ms = (time.time() - t0) * 1000
 
+        if return_timing:
+            return results, {"detection_ms": detection_ms, "recognition_ms": recognition_ms}
         return results
