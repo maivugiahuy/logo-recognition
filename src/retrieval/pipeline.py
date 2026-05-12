@@ -46,7 +46,7 @@ class LogoRecognitionPipeline:
         detector_weights: str | Path = DEFAULT_DETECTOR,
         embedder_ckpt: str | Path = DEFAULT_EMBEDDER,
         gallery_name: str = DEFAULT_GALLERY,
-        backbone: str = "vit_b32_openai",
+        backbone: str = "vit_b16_openai",
         conf: float = 0.1,
         embed_dim: int = 128,
         input_size: int = 160,

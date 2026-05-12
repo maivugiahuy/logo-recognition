@@ -19,9 +19,9 @@ if __name__ == "__main__":
     parser.add_argument("--split", default="all",
                         choices=["all", "closedset", "openset"],
                         help="Which split to evaluate (default: all)")
-    parser.add_argument("--backbone", default="vit_b32_openai",
-                        choices=["vit_b32_openai", "dinov2_vitb14", "dinov3_vitb16"],
-                        help="Embedder backbone matching the checkpoint (default: vit_b32_openai)")
+    parser.add_argument("--backbone", default="vit_b16_openai",
+                        choices=["vit_b16_openai", "dinov2_vitb14", "dinov3_vitb16"],
+                        help="Embedder backbone matching the checkpoint (default: vit_b16_openai)")
     parser.add_argument("--ocr", action="store_true",
                         help="Enable OCR fusion: EasyOCR text fused with visual score at retrieval")
     parser.add_argument("--ocr_weight", type=float, default=0.3,

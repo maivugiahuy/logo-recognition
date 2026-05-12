@@ -1,6 +1,6 @@
 # Phase C: closed-set ViT-B/32 + ProxyNCAHN++
 mode: closed_set
-backbone: vit_b32_openai
+backbone: vit_b16_openai
 input_size: 160
 embed_dim: 128
 init_from: checkpoints/vit_base.pt

@@ -45,7 +45,7 @@ _IMAGENET_BACKBONES = _DINOV2_BACKBONES | _DINOV3_BACKBONES
 
 
 def _build_embedder(cfg: dict, device: torch.device) -> nn.Module:
-    backbone = cfg.get("backbone", "vit_b32_openai")
+    backbone = cfg.get("backbone", "vit_b16_openai")
     freeze_blocks = cfg.get("freeze_blocks", 0)
     embed_dim = cfg["embed_dim"]
     input_size = cfg["input_size"]
@@ -57,7 +57,7 @@ def _build_embedder(cfg: dict, device: torch.device) -> nn.Module:
 
 
 def _get_transforms(cfg: dict):
-    backbone = cfg.get("backbone", "vit_b32_openai")
+    backbone = cfg.get("backbone", "vit_b16_openai")
     size = cfg["input_size"]
     if backbone in _IMAGENET_BACKBONES:
         return train_transforms_dinov2(size), val_transforms_dinov2(size)

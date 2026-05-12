@@ -63,9 +63,9 @@ if __name__ == "__main__":
     parser.add_argument("--embedder", default="checkpoints/vit_hn.pt")
     parser.add_argument("--gallery", default="openlogodet3k",
                         help="Gallery name: 'openlogodet3k' (eval, default) or 'new_classes' (user-added via add_classes.py)")
-    parser.add_argument("--backbone", default="vit_b32_openai",
-                        choices=["vit_b32_openai", "dinov2_vitb14", "dinov3_vitb16"],
-                        help="Embedder backbone (default: vit_b32_openai)")
+    parser.add_argument("--backbone", default="vit_b16_openai",
+                        choices=["vit_b16_openai", "dinov2_vitb14", "dinov3_vitb16"],
+                        help="Embedder backbone (default: vit_b16_openai)")
     parser.add_argument("--input_size", type=int, default=None,
                         help="Override input resolution (default: 160 for ViT, 168 for DINOv2)")
     parser.add_argument("--conf", type=float, default=0.1)

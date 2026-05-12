@@ -1,7 +1,7 @@
 """
-ViT-B/32 embedder:
-  - open_clip ViT-B/32 trunk with OpenAI pretrained weights
-  - bicubic-interpolate positional embeddings 224→160
+ViT-B/16 embedder:
+  - open_clip ViT-B/16 trunk with OpenAI pretrained weights
+  - bicubic-interpolate positional embeddings 224→160 (14×14 grid → 10×10, 100 tokens)
   - FC 512→128 head
   - L2-normalized output
 """
@@ -20,7 +20,7 @@ class ViTEmbedder(nn.Module):
 
         # Load trunk (vision tower only)
         clip_model, _, _ = open_clip.create_model_and_transforms(
-            "ViT-B-32", pretrained="openai"
+            "ViT-B-16", pretrained="openai"
         )
         self.trunk = clip_model.visual
 
@@ -28,7 +28,7 @@ class ViTEmbedder(nn.Module):
         if input_size != 224:
             self._interpolate_pos_embed(input_size)
 
-        trunk_dim = self.trunk.output_dim  # 512 for ViT-B/32 (post-projection dim)
+        trunk_dim = self.trunk.output_dim  # 512 for ViT-B/16 (post-projection dim)
 
         # open_clip ViT-B/32 output_dim = 512 (post CLIP projection layer)
         self.fc = nn.Linear(trunk_dim, embed_dim)
