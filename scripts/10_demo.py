@@ -12,6 +12,7 @@ sys.path.insert(0, ".")
 
 from PIL import Image, ImageDraw, ImageFont
 
+from src.retrieval.ensemble import build_ensemble_pipeline
 from src.retrieval.pipeline import LogoRecognitionPipeline
 from src.utils.logging_utils import setup_logging
 
@@ -63,19 +64,28 @@ if __name__ == "__main__":
     parser.add_argument("--gallery", default="openlogodet3k",
                         help="Gallery name: 'openlogodet3k' (eval, default) or 'new_classes' (user-added via add_classes.py)")
     parser.add_argument("--backbone", default="vit_b32_openai",
-                        choices=["vit_b32_openai", "dinov2_vitb14"],
+                        choices=["vit_b32_openai", "dinov2_vitb14", "vit_s16"],
                         help="Embedder backbone (default: vit_b32_openai)")
     parser.add_argument("--input_size", type=int, default=None,
-                        help="Override input resolution (default: 160 for ViT, 224 for DINOv2)")
+                        help="Override input resolution (default: 160 for ViT/ViT-S, 168 for DINOv2)")
     parser.add_argument("--conf", type=float, default=0.1)
     parser.add_argument("--unknown_threshold", type=float, default=0.50,
                         help="Cosine similarity threshold below which logo is 'unknown' (default: 0.50)")
-    parser.add_argument("--no_qe", action="store_true",
-                        help="Disable α-weighted Query Expansion")
-    parser.add_argument("--qe_k", type=int, default=5,
-                        help="Number of neighbors for Query Expansion (default: 5)")
-    parser.add_argument("--qe_alpha", type=float, default=3.0,
-                        help="α exponent for QE weighting — higher = closer neighbors dominate (default: 3.0)")
+    # Ensemble mode
+    parser.add_argument("--ensemble", action="store_true",
+                        help="Use ViT+DINOv2 ensemble (ignores --backbone/--embedder/--gallery)")
+    parser.add_argument("--vit_ckpt", default="checkpoints/vit_hn.pt")
+    parser.add_argument("--vit_gallery", default="openlogodet3k")
+    parser.add_argument("--dinov2_ckpt", default="checkpoints/dinov2_hn.pt")
+    parser.add_argument("--dinov2_gallery", default="openlogodet3k_dinov2")
+    parser.add_argument("--vit_weight", type=float, default=0.5,
+                        help="ViT score weight in ensemble fusion (default: 0.5)")
+    parser.add_argument("--ocr", action="store_true",
+                        help="Enable OCR fusion: EasyOCR text on crop fused with visual score")
+    parser.add_argument("--ocr_weight", type=float, default=0.3,
+                        help="Weight for OCR text score in fusion (default: 0.3)")
+    parser.add_argument("--ocr_rerank_k", type=int, default=10,
+                        help="Top-k candidates to rerank with OCR (default: 10)")
     parser.add_argument("--save_dir", default=None)
     parser.add_argument("--save_crops", action="store_true",
                         help="Save each detected logo crop as a separate image")
@@ -83,21 +93,33 @@ if __name__ == "__main__":
 
     setup_logging(__file__)
     print("Loading pipeline...")
-    default_input_size = 168 if args.backbone == "dinov2_vitb14" else 160
-    input_size = args.input_size if args.input_size is not None else default_input_size
 
-    pipeline = LogoRecognitionPipeline(
-        detector_weights=args.detector,
-        embedder_ckpt=args.embedder,
-        gallery_name=args.gallery,
-        backbone=args.backbone,
-        conf=args.conf,
-        input_size=input_size,
-        unknown_threshold=args.unknown_threshold,
-        qe_enabled=not args.no_qe,
-        qe_k=args.qe_k,
-        qe_alpha=args.qe_alpha,
-    )
+    if args.ensemble:
+        pipeline = build_ensemble_pipeline(
+            detector_weights=args.detector,
+            vit_ckpt=args.vit_ckpt,
+            dinov2_ckpt=args.dinov2_ckpt,
+            vit_gallery=args.vit_gallery,
+            dinov2_gallery=args.dinov2_gallery,
+            conf=args.conf,
+            unknown_threshold=args.unknown_threshold,
+            vit_weight=args.vit_weight,
+        )
+    else:
+        default_input_size = 168 if args.backbone == "dinov2_vitb14" else 160  # vit_s16 uses 160
+        input_size = args.input_size if args.input_size is not None else default_input_size
+        pipeline = LogoRecognitionPipeline(
+            detector_weights=args.detector,
+            embedder_ckpt=args.embedder,
+            gallery_name=args.gallery,
+            backbone=args.backbone,
+            conf=args.conf,
+            input_size=input_size,
+            unknown_threshold=args.unknown_threshold,
+            ocr_enabled=args.ocr,
+            ocr_weight=args.ocr_weight,
+            ocr_rerank_k=args.ocr_rerank_k,
+        )
 
     for img_path in args.images:
         print(f"\nImage: {img_path}")

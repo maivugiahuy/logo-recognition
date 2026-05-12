@@ -18,6 +18,7 @@ import faiss
 import numpy as np
 import pandas as pd
 import torch
+from PIL import Image as PILImage
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -25,8 +26,10 @@ from src.data.dataset import LogoDataset
 from src.data.transforms import val_transforms, val_transforms_dinov2
 from src.models.embedder_dinov2 import build_dinov2_embedder
 from src.models.embedder_vit import build_vit_embedder
+from src.models.embedder_vit_s import build_vit_s_embedder
 
 _DINOV2_BACKBONES = {"dinov2_vitb14", "dinov2"}
+_VIT_S_BACKBONES = {"vit_s16"}
 
 SMALL_THRESHOLD = 70  # 40th percentile of crop min-side ≈ 70px
 N_QUERY_PER_CLASS = 10
@@ -89,23 +92,23 @@ def query_vs_gallery(
     return q_embs, q_labels, g_embs, g_labels
 
 
-def _alpha_qe(
-    q_embs: np.ndarray,
-    g_embs: np.ndarray,
-    index: faiss.Index,
-    qe_k: int = 5,
-    qe_alpha: float = 3.0,
-) -> np.ndarray:
-    """α-weighted Query Expansion: re-query with weighted average of query + top-k."""
-    k = min(qe_k, index.ntotal)
-    scores, indices = index.search(q_embs, k)
-    scores = np.clip(scores, 0, None)
-    weights = np.power(scores, qe_alpha).astype("float32")  # (Q, k)
-    neighbor_vecs = g_embs[indices]  # (Q, k, D)
-    weighted_sum = q_embs + np.einsum("qk,qkd->qd", weights, neighbor_vecs)
-    norms = np.linalg.norm(weighted_sum, axis=1, keepdims=True)
-    norms = np.maximum(norms, 1e-8)
-    return (weighted_sum / norms).astype("float32")
+def _ocr_dataset(ds: LogoDataset, gpu: bool = True) -> list[str]:
+    """Run EasyOCR on every crop in ds (same order as _embed_dataset). Returns list of strings."""
+    from src.retrieval.ocr import run_ocr
+    texts = []
+    for _, row in tqdm(ds.df.iterrows(), total=len(ds.df), desc="OCR crops"):
+        try:
+            img = PILImage.open(row["image_path"]).convert("RGB")
+            w, h = img.size
+            crop = img.crop((
+                max(0, int(row["x1"])), max(0, int(row["y1"])),
+                min(w, int(row["x2"])), min(h, int(row["y2"])),
+            ))
+            text = run_ocr(crop, gpu=gpu)
+        except Exception:
+            text = ""
+        texts.append(text)
+    return texts
 
 
 def compute_recall_at_1(
@@ -114,20 +117,37 @@ def compute_recall_at_1(
     g_embs: np.ndarray,
     g_labels: list[str],
     all_vs_all: bool = False,
-    qe_enabled: bool = False,
-    qe_k: int = 5,
-    qe_alpha: float = 3.0,
+    ocr_enabled: bool = False,
+    q_ocr_texts: list[str] | None = None,
+    ocr_weight: float = 0.3,
+    ocr_rerank_k: int = 10,
 ) -> float:
     """
     Compute recall@1.
     If all_vs_all=True, q==g and we take 2nd-nearest neighbor.
-    If qe_enabled=True, apply α-weighted Query Expansion before final retrieval.
+    If ocr_enabled=True (and not all_vs_all), rerank top-k with OCR text fusion.
     """
     index = faiss.IndexFlatIP(q_embs.shape[1])
     index.add(g_embs)
 
-    if qe_enabled:
-        q_embs = _alpha_qe(q_embs, g_embs, index, qe_k, qe_alpha)
+    if ocr_enabled and q_ocr_texts and not all_vs_all:
+        from src.retrieval.ocr import text_similarity
+        rerank_k = min(ocr_rerank_k, index.ntotal)
+        scores_mat, indices_mat = index.search(q_embs, rerank_k)
+        correct = 0
+        for qi in range(len(q_labels)):
+            ocr_text = q_ocr_texts[qi]
+            best_score, best_idx = -1.0, int(indices_mat[qi, 0])
+            for vis_score, g_idx in zip(scores_mat[qi], indices_mat[qi]):
+                tsim = text_similarity(ocr_text, g_labels[g_idx])
+                fused = (
+                    (1 - ocr_weight) * float(vis_score) + ocr_weight * tsim
+                    if ocr_text else float(vis_score)
+                )
+                if fused > best_score:
+                    best_score, best_idx = fused, int(g_idx)
+            correct += g_labels[best_idx] == q_labels[qi]
+        return correct / len(q_labels)
 
     k = 2 if all_vs_all else 1
     _, nn_indices = index.search(q_embs, k)  # (Q, k)
@@ -147,50 +167,35 @@ def evaluate(
     backbone: str = "vit_b32_openai",
     embed_dim: int = 128,
     input_size: int | None = None,
-    qe_enabled: bool = False,
-    qe_k: int = 5,
-    qe_alpha: float = 3.0,
+    ocr_enabled: bool = False,
+    ocr_weight: float = 0.3,
+    ocr_rerank_k: int = 10,
 ) -> dict[str, float]:
     """Full evaluation returning recall@1 for all subsets."""
     is_dinov2 = backbone in _DINOV2_BACKBONES
+    is_vit_s = backbone in _VIT_S_BACKBONES
     if input_size is None:
         input_size = 224 if is_dinov2 else 160
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if is_dinov2:
         embedder = build_dinov2_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
+    elif is_vit_s:
+        embedder = build_vit_s_embedder(embed_dim, input_size).to(device)
     else:
         embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
     state = torch.load(ckpt_path, map_location=device)
     embedder.load_state_dict(state["embedder"])
     embedder.eval()
 
-    transform = val_transforms_dinov2(input_size) if is_dinov2 else val_transforms(input_size)
+    # ViT-S uses ImageNet normalization (same as DINOv2)
+    transform = val_transforms(input_size) if not (is_dinov2 or is_vit_s) else val_transforms_dinov2(input_size)
     ds = LogoDataset.from_split(
         ann_parquet, split_json, transform=transform, mode=mode
     )
     embs, class_names, min_sides = _embed_dataset(ds, embedder, device)
 
-    qe_args = dict(qe_enabled=qe_enabled, qe_k=qe_k, qe_alpha=qe_alpha)
-
-    # all-vs-all
-    ava = compute_recall_at_1(embs, class_names, embs, class_names, all_vs_all=True, **qe_args)
-
-    # query-vs-gallery
-    q_embs, q_labels, g_embs, g_labels = query_vs_gallery(embs, class_names)
-    qvg = compute_recall_at_1(q_embs, q_labels, g_embs, g_labels, **qe_args)
-
-    # text subset (Q-vs-G)
-    text_mask = [cls.endswith("_text") for cls in q_labels]
-    if any(text_mask):
-        t_embs = q_embs[[i for i, m in enumerate(text_mask) if m]]
-        t_labels = [l for l, m in zip(q_labels, text_mask) if m]
-        text_r = compute_recall_at_1(t_embs, t_labels, g_embs, g_labels, **qe_args)
-    else:
-        text_r = float("nan")
-
-    # small / large subsets — need per-query min_side
-    # Recompute min_sides for query indices
+    # Compute query indices once — shared by OCR, small, large subsets
     rng = random.Random(SEED)
     class_to_indices: dict[str, list[int]] = defaultdict(list)
     for i, cls in enumerate(class_names):
@@ -202,6 +207,36 @@ def evaluate(
         n_q = min(N_QUERY_PER_CLASS, max(1, len(shuffled) - 1), len(shuffled) // 3 + 1)
         query_idx.extend(shuffled[:n_q])
 
+    # OCR: run on all crops, extract query subset
+    if ocr_enabled:
+        all_ocr_texts = _ocr_dataset(ds, gpu=device.type == "cuda")
+        q_ocr_texts = [all_ocr_texts[i] for i in query_idx]
+    else:
+        q_ocr_texts = None
+
+    ocr_args = dict(ocr_enabled=ocr_enabled, q_ocr_texts=q_ocr_texts,
+                    ocr_weight=ocr_weight, ocr_rerank_k=ocr_rerank_k)
+
+    # all-vs-all (OCR skipped — self-exclusion incompatible with reranking)
+    ava = compute_recall_at_1(embs, class_names, embs, class_names, all_vs_all=True)
+
+    # query-vs-gallery
+    q_embs, q_labels, g_embs, g_labels = query_vs_gallery(embs, class_names)
+    qvg = compute_recall_at_1(q_embs, q_labels, g_embs, g_labels, **ocr_args)
+
+    # text subset (Q-vs-G)
+    text_mask = [cls.endswith("_text") for cls in q_labels]
+    if any(text_mask):
+        t_idx = [i for i, m in enumerate(text_mask) if m]
+        t_embs = q_embs[t_idx]
+        t_labels = [q_labels[i] for i in t_idx]
+        t_ocr = [q_ocr_texts[i] for i in t_idx] if q_ocr_texts else None
+        text_r = compute_recall_at_1(t_embs, t_labels, g_embs, g_labels,
+                                     **{**ocr_args, "q_ocr_texts": t_ocr})
+    else:
+        text_r = float("nan")
+
+    # small / large subsets
     q_min_sides = [min_sides[i] for i in query_idx]
     small_mask = [s < SMALL_THRESHOLD for s in q_min_sides]
     large_mask = [not m for m in small_mask]
@@ -212,7 +247,9 @@ def evaluate(
             return float("nan")
         se = q_embs[idx]
         sl = [q_labels[i] for i in idx]
-        return compute_recall_at_1(se, sl, g_embs, g_labels, **qe_args)
+        so = [q_ocr_texts[i] for i in idx] if q_ocr_texts else None
+        return compute_recall_at_1(se, sl, g_embs, g_labels,
+                                   **{**ocr_args, "q_ocr_texts": so})
 
     small_r = subset_recall(small_mask)
     large_r = subset_recall(large_mask)
@@ -226,4 +263,124 @@ def evaluate(
     }
     for k, v in results.items():
         print(f"  {k:15s}: {v:.4f}")
+    return results
+
+
+def evaluate_ensemble(
+    vit_ckpt: str | Path,
+    dinov2_ckpt: str | Path,
+    ann_parquet: str | Path,
+    split_json: str | Path = None,
+    mode: str = "open_set",
+    embed_dim: int = 128,
+    vit_input_size: int = 160,
+    dinov2_input_size: int = 168,
+    vit_weight: float = 0.5,
+    ensemble_top_k: int = 20,
+) -> dict[str, float]:
+    """Ensemble recall@1: fuse ViT + DINOv2 scores per label, pick best."""
+    import numpy as np
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    vit_embedder = build_vit_embedder(embed_dim, vit_input_size, freeze_blocks=0).to(device)
+    state = torch.load(vit_ckpt, map_location=device)
+    vit_embedder.load_state_dict(state["embedder"])
+    vit_embedder.eval()
+
+    dino_embedder = build_dinov2_embedder(embed_dim, dinov2_input_size, freeze_blocks=0).to(device)
+    state = torch.load(dinov2_ckpt, map_location=device)
+    dino_embedder.load_state_dict(state["embedder"])
+    dino_embedder.eval()
+
+    vit_ds = LogoDataset.from_split(
+        ann_parquet, split_json, transform=val_transforms(vit_input_size), mode=mode
+    )
+    dino_ds = LogoDataset.from_split(
+        ann_parquet, split_json, transform=val_transforms_dinov2(dinov2_input_size), mode=mode
+    )
+
+    vit_embs, class_names, min_sides = _embed_dataset(vit_ds, vit_embedder, device)
+    dino_embs, _, _ = _embed_dataset(dino_ds, dino_embedder, device)
+
+    # Shared query/gallery split (same seed → same indices for both backbones)
+    rng = random.Random(SEED)
+    class_to_indices: dict[str, list[int]] = defaultdict(list)
+    for i, cls in enumerate(class_names):
+        class_to_indices[cls].append(i)
+    query_idx, gallery_idx = [], []
+    for cls, indices in class_to_indices.items():
+        shuffled = indices.copy()
+        rng.shuffle(shuffled)
+        n_q = min(N_QUERY_PER_CLASS, max(1, len(shuffled) - 1), len(shuffled) // 3 + 1)
+        query_idx.extend(shuffled[:n_q])
+        gallery_idx.extend(shuffled[n_q:])
+
+    q_vit = vit_embs[query_idx]
+    g_vit = vit_embs[gallery_idx]
+    q_dino = dino_embs[query_idx]
+    g_dino = dino_embs[gallery_idx]
+    q_labels = [class_names[i] for i in query_idx]
+    g_labels = [class_names[i] for i in gallery_idx]
+    q_min_sides = [min_sides[i] for i in query_idx]
+
+    vit_index = faiss.IndexFlatIP(embed_dim)
+    vit_index.add(g_vit)
+    dino_index = faiss.IndexFlatIP(embed_dim)
+    dino_index.add(g_dino)
+
+    def _ensemble_recall(q_mask: list[bool] | None = None) -> float:
+        if q_mask is not None:
+            qi_list = [i for i, m in enumerate(q_mask) if m]
+            if not qi_list:
+                return float("nan")
+            qv = q_vit[qi_list]
+            qd = q_dino[qi_list]
+            ql = [q_labels[i] for i in qi_list]
+        else:
+            qv, qd, ql = q_vit, q_dino, q_labels
+
+        k = min(ensemble_top_k, vit_index.ntotal)
+        vit_s, vit_i = vit_index.search(qv, k)
+        dino_s, dino_i = dino_index.search(qd, k)
+        dinov2_weight = 1.0 - vit_weight
+
+        correct = 0
+        for qi in range(len(ql)):
+            vit_lbl: dict[str, float] = {}
+            for s, idx in zip(vit_s[qi], vit_i[qi]):
+                lbl = g_labels[idx]
+                vit_lbl[lbl] = max(vit_lbl.get(lbl, 0.0), float(s))
+            dino_lbl: dict[str, float] = {}
+            for s, idx in zip(dino_s[qi], dino_i[qi]):
+                lbl = g_labels[idx]
+                dino_lbl[lbl] = max(dino_lbl.get(lbl, 0.0), float(s))
+            all_lbls = set(vit_lbl) | set(dino_lbl)
+            fused = {
+                l: vit_weight * vit_lbl.get(l, 0.0) + dinov2_weight * dino_lbl.get(l, 0.0)
+                for l in all_lbls
+            }
+            best = max(fused, key=fused.__getitem__)
+            correct += best == ql[qi]
+        return correct / len(ql)
+
+    qvg = _ensemble_recall()
+
+    text_mask = [cls.endswith("_text") for cls in q_labels]
+    text_r = _ensemble_recall(text_mask) if any(text_mask) else float("nan")
+
+    small_mask = [s < SMALL_THRESHOLD for s in q_min_sides]
+    large_mask = [not m for m in small_mask]
+    small_r = _ensemble_recall(small_mask)
+    large_r = _ensemble_recall(large_mask)
+
+    results = {
+        "all_vs_all": float("nan"),  # not supported for ensemble
+        "qvg": qvg,
+        "text_qvg": text_r,
+        "small_qvg": small_r,
+        "large_qvg": large_r,
+    }
+    for k, v in results.items():
+        print(f"  {k:15s}: {v:.4f}" if not (v != v) else f"  {k:15s}: n/a")
     return results

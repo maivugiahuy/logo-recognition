@@ -78,9 +78,9 @@ def run_all(
     split: str = "all",
     ckpt_label: str = None,
     backbone: str = "vit_b32_openai",
-    qe_enabled: bool = False,
-    qe_k: int = 5,
-    qe_alpha: float = 3.0,
+    ocr_enabled: bool = False,
+    ocr_weight: float = 0.3,
+    ocr_rerank_k: int = 10,
 ) -> dict:
     """Run evaluation.
     split: 'all' | 'closedset' | 'openset'
@@ -115,34 +115,12 @@ def run_all(
             split_json=None,
             mode=cfg["mode"],
             backbone=backbone,
-            qe_enabled=qe_enabled,
-            qe_k=qe_k,
-            qe_alpha=qe_alpha,
+            ocr_enabled=ocr_enabled,
+            ocr_weight=ocr_weight,
+            ocr_rerank_k=ocr_rerank_k,
         )
         all_results[name] = results
 
-    # Append to CSV (accumulate across multiple run_all calls in one session)
-    rows = []
-    for ds, res in all_results.items():
-        row = {"checkpoint": label, "dataset": ds}
-        row.update(res)
-        rows.append(row)
-    if rows:
-        out_csv = Path("results/eval_results.csv")
-        Path("results").mkdir(exist_ok=True)
-        new_df = pd.DataFrame(rows)
-        if out_csv.exists():
-            existing = pd.read_csv(out_csv)
-            # Drop rows with same checkpoint+dataset (overwrite stale results)
-            mask = ~(
-                existing["checkpoint"].isin(new_df["checkpoint"]) &
-                existing["dataset"].isin(new_df["dataset"])
-            )
-            combined = pd.concat([existing[mask], new_df], ignore_index=True)
-        else:
-            combined = new_df
-        combined.to_csv(out_csv, index=False)
-        print(f"\nSaved → {out_csv}")
     return all_results
 
 

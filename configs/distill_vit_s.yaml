@@ -1,0 +1,24 @@
+# Knowledge distillation: ViT-S/16 student ← ViT-HN + DINOv2-HN ensemble teacher
+input_size: 160      # matches ViT training (patch=16 → 10×10=100 patches)
+embed_dim: 128
+
+# Paths to precomputed teacher embeddings (from scripts/11_precompute_teacher.py)
+teacher_embs: data/processed/teacher_embs.npy
+teacher_parquet: data/processed/teacher_train.parquet
+
+optimizer:
+  lr: 1.0e-4
+  weight_decay: 0.05
+
+scheduler:
+  patience: 5
+  factor: 0.25
+
+early_stopping_patience: 7
+
+training:
+  epochs: 50
+  batch_size: 512
+
+amp: true
+num_workers: 8

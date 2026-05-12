@@ -22,11 +22,32 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from src.data.transforms import val_transforms
+from src.data.transforms import val_transforms, val_transforms_dinov2
+from src.models.embedder_dinov2 import build_dinov2_embedder
 from src.models.embedder_vit import build_vit_embedder
+from src.models.embedder_vit_s import build_vit_s_embedder
 
 GALLERY_DIR = Path("data/galleries")
 CKPT = Path("checkpoints/vit_hn.pt")
+_DINOV2_BACKBONES = {"dinov2_vitb14", "dinov2"}
+_VIT_S_BACKBONES = {"vit_s16"}
+
+
+def _load_embedder(backbone: str, embed_dim: int, input_size: int,
+                   ckpt_path: str | Path, device: torch.device):
+    if backbone in _DINOV2_BACKBONES:
+        embedder = build_dinov2_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
+        transform = val_transforms_dinov2(input_size)
+    elif backbone in _VIT_S_BACKBONES:
+        embedder = build_vit_s_embedder(embed_dim, input_size).to(device)
+        transform = val_transforms_dinov2(input_size)  # ImageNet norm
+    else:
+        embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
+        transform = val_transforms(input_size)
+    state = torch.load(ckpt_path, map_location=device)
+    embedder.load_state_dict(state["embedder"])
+    embedder.eval()
+    return embedder, transform
 
 
 class CroppedLogoDataset(Dataset):
@@ -60,6 +81,7 @@ def build_gallery(
     embed_dim: int = 128,
     input_size: int = 160,
     batch_size: int = 256,
+    backbone: str = "vit_b32_openai",
 ) -> None:
     """
     Embed all reference images and write:
@@ -67,15 +89,12 @@ def build_gallery(
       data/galleries/{dataset_name}_labels.json  — [class_name per index]
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
-    state = torch.load(ckpt_path, map_location=device)
-    embedder.load_state_dict(state["embedder"])
-    embedder.eval()
+    embedder, transform = _load_embedder(backbone, embed_dim, input_size, ckpt_path, device)
 
     df = pd.read_parquet(ann_parquet)
     rows = df.to_dict("records")
 
-    ds = CroppedLogoDataset(rows, transform=val_transforms(input_size))
+    ds = CroppedLogoDataset(rows, transform=transform)
     loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=4)
 
     all_embs, all_labels = [], []
@@ -164,6 +183,7 @@ def add_to_gallery(
     input_size: int = 160,
     crop_box: tuple | None = None,
     on_duplicate: str = "append",  # "append" | "replace" | "skip"
+    backbone: str = "vit_b32_openai",
 ) -> None:
     """
     Add a brand to an existing gallery without rebuilding from scratch.
@@ -192,12 +212,7 @@ def add_to_gallery(
 
     # ── Embed new images ──────────────────────────────────────────────────
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
-    state = torch.load(ckpt_path, map_location=device)
-    embedder.load_state_dict(state["embedder"])
-    embedder.eval()
-
-    transform = val_transforms(input_size)
+    embedder, transform = _load_embedder(backbone, embed_dim, input_size, ckpt_path, device)
     new_embs = []
 
     for img_path in image_paths:
