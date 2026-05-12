@@ -309,18 +309,22 @@ def evaluate(
 
 def evaluate_ensemble(
     vit_ckpt: str | Path,
-    dinov2_ckpt: str | Path,
+    dino_ckpt: str | Path,
     ann_parquet: str | Path,
     split_json: str | Path = None,
     mode: str = "open_set",
     embed_dim: int = 128,
     vit_input_size: int = 160,
-    dinov2_input_size: int = 168,
+    dino_input_size: int | None = None,
+    dino_backbone: str = "dinov3_vitb16",
     vit_weight: float = 0.5,
     ensemble_top_k: int = 20,
 ) -> dict[str, float]:
-    """Ensemble recall@1: fuse ViT + DINOv2 scores per label, pick best."""
+    """Ensemble recall@1: fuse ViT + DINO scores per label, pick best."""
     import numpy as np
+
+    if dino_input_size is None:
+        dino_input_size = 168 if dino_backbone in _DINOV2_BACKBONES else 160
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -329,8 +333,11 @@ def evaluate_ensemble(
     vit_embedder.load_state_dict(state["embedder"])
     vit_embedder.eval()
 
-    dino_embedder = build_dinov2_embedder(embed_dim, dinov2_input_size, freeze_blocks=0).to(device)
-    state = torch.load(dinov2_ckpt, map_location=device)
+    if dino_backbone in _DINOV2_BACKBONES:
+        dino_embedder = build_dinov2_embedder(embed_dim, dino_input_size, freeze_blocks=0).to(device)
+    else:
+        dino_embedder = build_dinov3_embedder(embed_dim, dino_input_size, freeze_blocks=0).to(device)
+    state = torch.load(dino_ckpt, map_location=device)
     dino_embedder.load_state_dict(state["embedder"])
     dino_embedder.eval()
 
@@ -338,7 +345,7 @@ def evaluate_ensemble(
         ann_parquet, split_json, transform=val_transforms(vit_input_size), mode=mode
     )
     dino_ds = LogoDataset.from_split(
-        ann_parquet, split_json, transform=val_transforms_dinov2(dinov2_input_size), mode=mode
+        ann_parquet, split_json, transform=val_transforms_dinov2(dino_input_size), mode=mode
     )
 
     vit_embs, class_names, min_sides = _embed_dataset(vit_ds, vit_embedder, device)

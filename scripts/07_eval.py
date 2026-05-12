@@ -35,11 +35,14 @@ if __name__ == "__main__":
                         help="Parallel OCR workers via ThreadPoolExecutor (default: 1)")
     # Ensemble
     parser.add_argument("--ensemble", action="store_true",
-                        help="Evaluate ViT+DINOv2 ensemble (ignores --ckpt/--backbone)")
-    parser.add_argument("--vit_ckpt", default="checkpoints/vit_hn.pt",
-                        help="ViT checkpoint for ensemble (default: checkpoints/vit_hn.pt)")
-    parser.add_argument("--dinov2_ckpt", default="checkpoints/dinov2_hn.pt",
-                        help="DINOv2 checkpoint for ensemble (default: checkpoints/dinov2_hn.pt)")
+                        help="Evaluate ViT+DINO ensemble (ignores --ckpt/--backbone)")
+    parser.add_argument("--vit_ckpt", default="checkpoints/vit_b16_arcface_hn.pt",
+                        help="ViT checkpoint for ensemble (default: checkpoints/vit_b16_arcface_hn.pt)")
+    parser.add_argument("--dino_ckpt", default="checkpoints/dinov3_arcface_base.pt",
+                        help="DINO checkpoint for ensemble (default: checkpoints/dinov3_arcface_base.pt)")
+    parser.add_argument("--dino_backbone", default="dinov3_vitb16",
+                        choices=["dinov2_vitb14", "dinov3_vitb16"],
+                        help="Second backbone for ensemble (default: dinov3_vitb16)")
     parser.add_argument("--vit_weight", type=float, default=0.5,
                         help="ViT score weight in ensemble fusion (default: 0.5)")
     parser.add_argument("--ensemble_top_k", type=int, default=20,
@@ -61,7 +64,7 @@ if __name__ == "__main__":
         elif args.split == "openset":
             splits = {k: v for k, v in splits.items() if "openset" in k}
         print(f"\n{'#'*60}")
-        print(f"# Ensemble: {args.vit_ckpt} + {args.dinov2_ckpt}  vit_weight={args.vit_weight}")
+        print(f"# Ensemble: {args.vit_ckpt} + {args.dino_ckpt}  vit_weight={args.vit_weight}  dino_backbone={args.dino_backbone}")
         for name, (parquet, mode) in splits.items():
             if not Path(parquet).exists():
                 print(f"[SKIP] {name}: {parquet} not found")
@@ -71,7 +74,8 @@ if __name__ == "__main__":
             t0 = time.time()
             evaluate_ensemble(
                 vit_ckpt=args.vit_ckpt,
-                dinov2_ckpt=args.dinov2_ckpt,
+                dino_ckpt=args.dino_ckpt,
+                dino_backbone=args.dino_backbone,
                 ann_parquet=parquet,
                 mode=mode,
                 vit_weight=args.vit_weight,
