@@ -92,6 +92,9 @@ def build_gallery(
     embedder, transform = _load_embedder(backbone, embed_dim, input_size, ckpt_path, device)
 
     df = pd.read_parquet(ann_parquet)
+    # Normalize Windows backslash paths when running on Linux/Mac
+    if df["image_path"].str.contains(r"\\", regex=True).any():
+        df["image_path"] = df["image_path"].str.replace("\\", "/", regex=False)
     rows = df.to_dict("records")
 
     ds = CroppedLogoDataset(rows, transform=transform)

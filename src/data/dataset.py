@@ -32,6 +32,9 @@ class LogoDataset(Dataset):
         mode='closed_set': split_json is {class: [image_paths]} dict.
         """
         df = pd.read_parquet(ann_path)
+        # Normalize Windows backslash paths when running on Linux/Mac
+        if df["image_path"].str.contains(r"\\", regex=True).any():
+            df["image_path"] = df["image_path"].str.replace("\\", "/", regex=False)
 
         if split_json is not None:
             with open(split_json) as f:
@@ -45,7 +48,7 @@ class LogoDataset(Dataset):
                 # closed_set: {class_name: [image_paths]}
                 keep_rows = []
                 for class_name, imgs in split_data.items():
-                    img_set = set(imgs)
+                    img_set = {p.replace("\\", "/") for p in imgs}
                     rows = df[(df["class_name"] == class_name) & (df["image_path"].isin(img_set))]
                     keep_rows.append(rows)
                 df = pd.concat(keep_rows, ignore_index=True) if keep_rows else df.iloc[:0]
