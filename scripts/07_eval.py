@@ -22,17 +22,6 @@ if __name__ == "__main__":
     parser.add_argument("--backbone", default="vit_b16_openai",
                         choices=["vit_b16_openai", "dinov2_vitb14", "dinov3_vitb16"],
                         help="Embedder backbone matching the checkpoint (default: vit_b16_openai)")
-    parser.add_argument("--ocr", action="store_true",
-                        help="Enable OCR fusion: EasyOCR text fused with visual score at retrieval")
-    parser.add_argument("--ocr_weight", type=float, default=0.3,
-                        help="Weight for OCR text score in fusion (default: 0.3)")
-    parser.add_argument("--ocr_rerank_k", type=int, default=10,
-                        help="Top-k candidates to rerank with OCR (default: 10)")
-    parser.add_argument("--ocr_backend", default="easyocr",
-                        choices=["easyocr", "paddle"],
-                        help="OCR backend (default: easyocr)")
-    parser.add_argument("--ocr_workers", type=int, default=1,
-                        help="Parallel OCR workers via ThreadPoolExecutor (default: 1)")
     # Ensemble
     parser.add_argument("--ensemble", action="store_true",
                         help="Evaluate ViT+DINO ensemble (ignores --ckpt/--backbone)")
@@ -47,12 +36,20 @@ if __name__ == "__main__":
                         help="ViT score weight in ensemble fusion (default: 0.5)")
     parser.add_argument("--ensemble_top_k", type=int, default=20,
                         help="Top-k per backbone for ensemble fusion (default: 20)")
+    # K-reciprocal re-ranking
+    parser.add_argument("--rerank", action="store_true",
+                        help="Enable k-reciprocal re-ranking (Zhong et al. 2017)")
+    parser.add_argument("--rerank_k", type=int, default=50,
+                        help="Initial top-k for re-ranking candidates (default: 50)")
+    parser.add_argument("--rerank_k1", type=int, default=20,
+                        help="Reciprocal neighbor set size (default: 20)")
+    parser.add_argument("--rerank_lambda", type=float, default=0.3,
+                        help="Weight for Jaccard score vs cosine (default: 0.3)")
     args = parser.parse_args()
     setup_logging(__file__)
 
-    ocr_args = dict(ocr_enabled=args.ocr, ocr_weight=args.ocr_weight,
-                    ocr_rerank_k=args.ocr_rerank_k, ocr_backend=args.ocr_backend,
-                    ocr_workers=args.ocr_workers)
+    rerank_args = dict(rerank=args.rerank, rerank_k=args.rerank_k,
+                       rerank_k1=args.rerank_k1, rerank_lambda=args.rerank_lambda)
 
     t_total = time.time()
     if args.ensemble:
@@ -89,6 +86,6 @@ if __name__ == "__main__":
             print(f"\n{'#'*60}")
             print(f"# Checkpoint: {ckpt}  Backbone: {args.backbone}")
             res = run_all(ckpt, split=args.split, ckpt_label=ckpt, backbone=args.backbone,
-                          **ocr_args)
+                          **rerank_args)
             all_results[ckpt] = res
     print(f"\nTotal elapsed: {time.time() - t_total:.1f}s")

@@ -19,7 +19,6 @@ import faiss
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image as PILImage
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -98,42 +97,44 @@ def query_vs_gallery(
     return q_embs, q_labels, g_embs, g_labels
 
 
-def _ocr_dataset(
-    ds: LogoDataset,
-    indices: list[int],
-    gpu: bool = True,
-    backend: str = "easyocr",
-    n_workers: int = 1,
-) -> list[str]:
-    """Run OCR on crops at given indices (query subset only). Returns texts in same order."""
-    from concurrent.futures import ThreadPoolExecutor
-    from src.retrieval.ocr import run_ocr
 
-    rows = [ds.df.iloc[i] for i in indices]
+def _rerank_k_reciprocal(
+    top_scores: np.ndarray,
+    top_indices: np.ndarray,
+    g_embs: np.ndarray,
+    g_index: faiss.Index,
+    k1: int = 20,
+    lambda_val: float = 0.3,
+) -> np.ndarray:
+    """Local k-reciprocal re-ranking (Zhong et al. 2017). Returns best gallery index per query."""
+    Q, K = top_indices.shape
+    k1 = min(k1, K, g_index.ntotal)
+    unique_cands = np.unique(top_indices)
+    _, g2g_idx = g_index.search(g_embs[unique_cands], min(k1, g_index.ntotal))
+    cand_to_pos = {int(c): i for i, c in enumerate(unique_cands)}
 
-    def _ocr_one(row):
-        try:
-            img = PILImage.open(row["image_path"]).convert("RGB")
-            w, h = img.size
-            crop = img.crop((
-                max(0, int(row["x1"])), max(0, int(row["y1"])),
-                min(w, int(row["x2"])), min(h, int(row["y2"])),
-            ))
-            return run_ocr(crop, gpu=gpu, backend=backend)
-        except Exception:
-            return ""
-
-    t0 = time.time()
-    if n_workers > 1:
-        with ThreadPoolExecutor(max_workers=n_workers) as exe:
-            texts = list(tqdm(exe.map(_ocr_one, rows), total=len(rows), desc="OCR crops"))
-    else:
-        texts = [_ocr_one(r) for r in tqdm(rows, desc="OCR crops")]
-    elapsed = time.time() - t0
-    n = len(texts)
-    print(f"  {'ocr':15s}: {n} crops  {elapsed:.1f}s  ({1000*elapsed/n:.2f} ms/crop)"
-          f"  [{backend}, workers={n_workers}]")
-    return texts
+    best_indices = np.empty(Q, dtype=np.int64)
+    for qi in range(Q):
+        R_q = set(top_indices[qi, :k1].tolist())
+        R_q_star = set(R_q)
+        for p in R_q:
+            pos = cand_to_pos.get(int(p))
+            if pos is None:
+                continue
+            R_p = set(g2g_idx[pos].tolist())
+            if len(R_q & R_p) >= (2.0 / 3.0) * len(R_p):
+                R_q_star |= R_p
+        best_score, best_idx = -1.0, int(top_indices[qi, 0])
+        for s, g_idx in zip(top_scores[qi], top_indices[qi]):
+            g_idx = int(g_idx)
+            pos = cand_to_pos.get(g_idx)
+            R_g = set(g2g_idx[pos].tolist()) if pos is not None else set()
+            jaccard = len(R_q_star & R_g) / max(len(R_q_star | R_g), 1)
+            fused = (1 - lambda_val) * float(s) + lambda_val * jaccard
+            if fused > best_score:
+                best_score, best_idx = fused, g_idx
+        best_indices[qi] = best_idx
+    return best_indices
 
 
 def compute_recall_at_1(
@@ -142,42 +143,31 @@ def compute_recall_at_1(
     g_embs: np.ndarray,
     g_labels: list[str],
     all_vs_all: bool = False,
-    ocr_enabled: bool = False,
-    q_ocr_texts: list[str] | None = None,
-    ocr_weight: float = 0.3,
-    ocr_rerank_k: int = 10,
+    rerank: bool = False,
+    rerank_k: int = 50,
+    rerank_k1: int = 20,
+    rerank_lambda: float = 0.3,
     _label: str = "",
 ) -> float:
     """
     Compute recall@1.
     If all_vs_all=True, q==g and we take 2nd-nearest neighbor.
-    If ocr_enabled=True (and not all_vs_all), rerank top-k with OCR text fusion.
+    If rerank=True, apply k-reciprocal re-ranking (Zhong et al. 2017).
     """
     index = faiss.IndexFlatIP(q_embs.shape[1])
     index.add(g_embs)
     nq = len(q_labels)
 
-    if ocr_enabled and q_ocr_texts and not all_vs_all:
-        from src.retrieval.ocr import text_similarity
-        rerank_k = min(ocr_rerank_k, index.ntotal)
+    if rerank and not all_vs_all:
+        k_search = min(rerank_k, index.ntotal)
         t0 = time.time()
-        scores_mat, indices_mat = index.search(q_embs, rerank_k)
-        correct = 0
-        for qi in range(nq):
-            ocr_text = q_ocr_texts[qi]
-            best_score, best_idx = -1.0, int(indices_mat[qi, 0])
-            for vis_score, g_idx in zip(scores_mat[qi], indices_mat[qi]):
-                tsim = text_similarity(ocr_text, g_labels[g_idx])
-                fused = (
-                    (1 - ocr_weight) * float(vis_score) + ocr_weight * tsim
-                    if ocr_text else float(vis_score)
-                )
-                if fused > best_score:
-                    best_score, best_idx = fused, int(g_idx)
-            correct += g_labels[best_idx] == q_labels[qi]
+        scores_mat, indices_mat = index.search(q_embs, k_search)
+        nn_idx = _rerank_k_reciprocal(scores_mat, indices_mat, g_embs, index,
+                                      k1=rerank_k1, lambda_val=rerank_lambda)
         elapsed = time.time() - t0
-        tag = f"retrieval{' ' + _label if _label else ''}"
+        tag = f"rerank{' ' + _label if _label else ''}"
         print(f"  {tag:15s}: {nq} queries  {elapsed:.1f}s  ({1000*elapsed/nq:.2f} ms/query)")
+        correct = sum(g_labels[nn_idx[i]] == q_labels[i] for i in range(nq))
         return correct / nq
 
     k = 2 if all_vs_all else 1
@@ -202,11 +192,10 @@ def evaluate(
     backbone: str = "vit_b32_openai",
     embed_dim: int = 128,
     input_size: int | None = None,
-    ocr_enabled: bool = False,
-    ocr_weight: float = 0.3,
-    ocr_rerank_k: int = 10,
-    ocr_backend: str = "easyocr",
-    ocr_workers: int = 1,
+    rerank: bool = False,
+    rerank_k: int = 50,
+    rerank_k1: int = 20,
+    rerank_lambda: float = 0.3,
 ) -> dict[str, float]:
     """Full evaluation returning recall@1 for all subsets."""
     is_dinov2 = backbone in _DINOV2_BACKBONES
@@ -231,7 +220,7 @@ def evaluate(
     )
     embs, class_names, min_sides = _embed_dataset(ds, embedder, device)
 
-    # Compute query indices once — shared by OCR, small, large subsets
+    # Compute query indices for small/large subsets
     rng = random.Random(SEED)
     class_to_indices: dict[str, list[int]] = defaultdict(list)
     for i, cls in enumerate(class_names):
@@ -243,27 +232,16 @@ def evaluate(
         n_q = min(N_QUERY_PER_CLASS, max(1, len(shuffled) - 1), len(shuffled) // 3 + 1)
         query_idx.extend(shuffled[:n_q])
 
-    # OCR: query crops only (not full dataset)
-    if ocr_enabled:
-        q_ocr_texts = _ocr_dataset(
-            ds, indices=query_idx,
-            gpu=device.type == "cuda",
-            backend=ocr_backend,
-            n_workers=ocr_workers,
-        )
-    else:
-        q_ocr_texts = None
+    rerank_args = dict(rerank=rerank, rerank_k=rerank_k, rerank_k1=rerank_k1,
+                       rerank_lambda=rerank_lambda)
 
-    ocr_args = dict(ocr_enabled=ocr_enabled, q_ocr_texts=q_ocr_texts,
-                    ocr_weight=ocr_weight, ocr_rerank_k=ocr_rerank_k)
-
-    # all-vs-all (OCR skipped — self-exclusion incompatible with reranking)
+    # all-vs-all (rerank skipped — self-exclusion incompatible)
     ava = compute_recall_at_1(embs, class_names, embs, class_names, all_vs_all=True,
                               _label="all_vs_all")
 
     # query-vs-gallery
     q_embs, q_labels, g_embs, g_labels = query_vs_gallery(embs, class_names)
-    qvg = compute_recall_at_1(q_embs, q_labels, g_embs, g_labels, **ocr_args, _label="qvg")
+    qvg = compute_recall_at_1(q_embs, q_labels, g_embs, g_labels, **rerank_args, _label="qvg")
 
     # text subset (Q-vs-G)
     text_mask = [cls.endswith("_text") for cls in q_labels]
@@ -271,9 +249,8 @@ def evaluate(
         t_idx = [i for i, m in enumerate(text_mask) if m]
         t_embs = q_embs[t_idx]
         t_labels = [q_labels[i] for i in t_idx]
-        t_ocr = [q_ocr_texts[i] for i in t_idx] if q_ocr_texts else None
         text_r = compute_recall_at_1(t_embs, t_labels, g_embs, g_labels,
-                                     **{**ocr_args, "q_ocr_texts": t_ocr}, _label="text")
+                                     **rerank_args, _label="text")
     else:
         text_r = float("nan")
 
@@ -288,9 +265,7 @@ def evaluate(
             return float("nan")
         se = q_embs[idx]
         sl = [q_labels[i] for i in idx]
-        so = [q_ocr_texts[i] for i in idx] if q_ocr_texts else None
-        return compute_recall_at_1(se, sl, g_embs, g_labels,
-                                   **{**ocr_args, "q_ocr_texts": so}, _label=label)
+        return compute_recall_at_1(se, sl, g_embs, g_labels, **rerank_args, _label=label)
 
     small_r = subset_recall(small_mask, "small")
     large_r = subset_recall(large_mask, "large")
@@ -372,6 +347,46 @@ def evaluate_ensemble(
     g_labels = [class_names[i] for i in gallery_idx]
     q_min_sides = [min_sides[i] for i in query_idx]
 
+    # All-vs-all: full-set indexes, skip self during fusion
+    def _ensemble_ava_recall() -> float:
+        vit_all = faiss.IndexFlatIP(embed_dim)
+        vit_all.add(vit_embs)
+        dino_all = faiss.IndexFlatIP(embed_dim)
+        dino_all.add(dino_embs)
+        k = min(ensemble_top_k + 1, vit_all.ntotal)
+        t0 = time.time()
+        vit_s_a, vit_i_a = vit_all.search(vit_embs, k)
+        dino_s_a, dino_i_a = dino_all.search(dino_embs, k)
+        dinov2_w = 1.0 - vit_weight
+        N = len(class_names)
+        correct = 0
+        for qi in range(N):
+            vit_lbl: dict[str, float] = {}
+            for s, idx in zip(vit_s_a[qi], vit_i_a[qi]):
+                if idx == qi:
+                    continue
+                lbl = class_names[idx]
+                vit_lbl[lbl] = max(vit_lbl.get(lbl, 0.0), float(s))
+            dino_lbl: dict[str, float] = {}
+            for s, idx in zip(dino_s_a[qi], dino_i_a[qi]):
+                if idx == qi:
+                    continue
+                lbl = class_names[idx]
+                dino_lbl[lbl] = max(dino_lbl.get(lbl, 0.0), float(s))
+            all_lbls = set(vit_lbl) | set(dino_lbl)
+            if not all_lbls:
+                continue
+            fused = {
+                l: vit_weight * vit_lbl.get(l, 0.0) + dinov2_w * dino_lbl.get(l, 0.0)
+                for l in all_lbls
+            }
+            correct += max(fused, key=fused.__getitem__) == class_names[qi]
+        elapsed = time.time() - t0
+        print(f"  {'all_vs_all':15s}: {N} queries  {elapsed:.1f}s  ({1000*elapsed/N:.2f} ms/query)")
+        return correct / N
+
+    ava = _ensemble_ava_recall()
+
     vit_index = faiss.IndexFlatIP(embed_dim)
     vit_index.add(g_vit)
     dino_index = faiss.IndexFlatIP(embed_dim)
@@ -423,7 +438,7 @@ def evaluate_ensemble(
     large_r = _ensemble_recall(large_mask)
 
     results = {
-        "all_vs_all": float("nan"),  # not supported for ensemble
+        "all_vs_all": ava,
         "qvg": qvg,
         "text_qvg": text_r,
         "small_qvg": small_r,

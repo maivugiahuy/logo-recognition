@@ -6,8 +6,7 @@ End-to-end inference pipeline:
 2. Crop + resize 160×160
 3. ViT/DINOv2 embedder → 128-d L2 vector
 4. FAISS IndexFlatIP → top-k retrieval
-5. OCR fusion (optional): EasyOCR on crop → fuse visual + text similarity scores
-6. Unknown threshold: if score < threshold → "unknown"
+5. Unknown threshold: if score < threshold → "unknown"
 """
 from pathlib import Path
 
@@ -21,7 +20,6 @@ from src.models.embedder_dinov2 import build_dinov2_embedder
 from src.models.embedder_dinov3 import build_dinov3_embedder
 from src.models.embedder_vit import build_vit_embedder
 from src.retrieval.gallery import load_gallery
-from src.retrieval.ocr import run_ocr, text_similarity
 
 DEFAULT_DETECTOR = "runs/detect/checkpoints/yolov8_logo/weights/best.pt"
 DEFAULT_EMBEDDER = "checkpoints/vit_hn.pt"
@@ -36,8 +34,6 @@ _IMAGENET_BACKBONES = _DINOV2_BACKBONES | _DINOV3_BACKBONES
 # Score < threshold → brand confidence too low → return "unknown".
 # Tune by running the pipeline on the val set and finding the F1-optimal threshold.
 DEFAULT_UNKNOWN_THRESHOLD = 0.50
-DEFAULT_OCR_WEIGHT = 0.3
-DEFAULT_OCR_RERANK_K = 10
 
 
 class LogoRecognitionPipeline:
@@ -52,10 +48,6 @@ class LogoRecognitionPipeline:
         input_size: int = 160,
         top_k: int = 1,
         unknown_threshold: float = DEFAULT_UNKNOWN_THRESHOLD,
-        ocr_enabled: bool = False,
-        ocr_weight: float = DEFAULT_OCR_WEIGHT,
-        ocr_rerank_k: int = DEFAULT_OCR_RERANK_K,
-        ocr_backend: str = "easyocr",
     ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         is_dinov2 = backbone in _DINOV2_BACKBONES
@@ -63,10 +55,6 @@ class LogoRecognitionPipeline:
         self.transform = val_transforms_dinov2(input_size) if backbone in _IMAGENET_BACKBONES else val_transforms(input_size)
         self.top_k = top_k
         self.unknown_threshold = unknown_threshold
-        self.ocr_enabled = ocr_enabled
-        self.ocr_weight = ocr_weight
-        self.ocr_rerank_k = ocr_rerank_k
-        self.ocr_backend = ocr_backend
 
         self.detector = LogoDetector(weights=detector_weights, conf=conf)
 
@@ -83,9 +71,8 @@ class LogoRecognitionPipeline:
 
         self.index, self.gallery_labels = load_gallery(gallery_name)
 
-        ocr_status = f"  OCR: on (w={self.ocr_weight}, k={self.ocr_rerank_k})" if self.ocr_enabled else ""
         print(f"Pipeline ready. Gallery: {len(self.gallery_labels)} entries. "
-              f"Unknown threshold: {self.unknown_threshold:.2f}{ocr_status}")
+              f"Unknown threshold: {self.unknown_threshold:.2f}")
 
     def _extract_crop(self, image: Image.Image, box: dict) -> Image.Image | None:
         """Return PIL crop for box, or None if degenerate."""
@@ -104,24 +91,6 @@ class LogoRecognitionPipeline:
         with torch.no_grad():
             emb = self.embedder(tensor).cpu().numpy()
         return emb.astype("float32")
-
-    def _ocr_rerank(self, query: np.ndarray, crop: Image.Image) -> tuple[float, int]:
-        """Search top-k, run OCR on crop, fuse visual+text scores, return (best_score, best_idx)."""
-        k = min(self.ocr_rerank_k, self.index.ntotal)
-        scores, indices = self.index.search(query, k)
-        scores, indices = scores[0], indices[0]
-
-        use_gpu = self.device.type == "cuda"
-        ocr_text = run_ocr(crop, gpu=use_gpu, backend=self.ocr_backend)
-
-        best_score, best_idx = -1.0, int(indices[0])
-        for vis_score, idx in zip(scores, indices):
-            label = self.gallery_labels[idx]
-            tsim = text_similarity(ocr_text, label)
-            fused = (1 - self.ocr_weight) * float(vis_score) + self.ocr_weight * tsim if ocr_text else float(vis_score)
-            if fused > best_score:
-                best_score, best_idx = fused, int(idx)
-        return best_score, best_idx
 
     def _search_box(
         self, image: Image.Image, box: dict, top_k: int = 20
@@ -155,13 +124,9 @@ class LogoRecognitionPipeline:
                 continue
 
             query = self._embed(crop)
-
-            if self.ocr_enabled:
-                score, best_idx = self._ocr_rerank(query, crop)
-            else:
-                raw_scores, indices = self.index.search(query, self.top_k)
-                score = float(raw_scores[0][0])
-                best_idx = int(indices[0][0])
+            raw_scores, indices = self.index.search(query, self.top_k)
+            score = float(raw_scores[0][0])
+            best_idx = int(indices[0][0])
 
             is_unknown = score < self.unknown_threshold
             brand = "unknown" if is_unknown else self.gallery_labels[best_idx]

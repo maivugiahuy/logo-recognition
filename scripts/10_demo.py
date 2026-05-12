@@ -80,15 +80,6 @@ if __name__ == "__main__":
     parser.add_argument("--dinov2_gallery", default="openlogodet3k_dinov2")
     parser.add_argument("--vit_weight", type=float, default=0.5,
                         help="ViT score weight in ensemble fusion (default: 0.5)")
-    parser.add_argument("--ocr", action="store_true",
-                        help="Enable OCR fusion: EasyOCR text on crop fused with visual score")
-    parser.add_argument("--ocr_weight", type=float, default=0.3,
-                        help="Weight for OCR text score in fusion (default: 0.3)")
-    parser.add_argument("--ocr_rerank_k", type=int, default=10,
-                        help="Top-k candidates to rerank with OCR (default: 10)")
-    parser.add_argument("--ocr_backend", default="easyocr",
-                        choices=["easyocr", "paddle"],
-                        help="OCR backend (default: easyocr)")
     parser.add_argument("--save_dir", default=None)
     parser.add_argument("--save_crops", action="store_true",
                         help="Save each detected logo crop as a separate image")
@@ -119,10 +110,6 @@ if __name__ == "__main__":
             conf=args.conf,
             input_size=input_size,
             unknown_threshold=args.unknown_threshold,
-            ocr_enabled=args.ocr,
-            ocr_weight=args.ocr_weight,
-            ocr_rerank_k=args.ocr_rerank_k,
-            ocr_backend=args.ocr_backend,
         )
 
     for img_path in args.images:
