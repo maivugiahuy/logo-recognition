@@ -86,6 +86,9 @@ if __name__ == "__main__":
                         help="Weight for OCR text score in fusion (default: 0.3)")
     parser.add_argument("--ocr_rerank_k", type=int, default=10,
                         help="Top-k candidates to rerank with OCR (default: 10)")
+    parser.add_argument("--ocr_backend", default="easyocr",
+                        choices=["easyocr", "paddle"],
+                        help="OCR backend (default: easyocr)")
     parser.add_argument("--save_dir", default=None)
     parser.add_argument("--save_crops", action="store_true",
                         help="Save each detected logo crop as a separate image")
@@ -119,6 +122,7 @@ if __name__ == "__main__":
             ocr_enabled=args.ocr,
             ocr_weight=args.ocr_weight,
             ocr_rerank_k=args.ocr_rerank_k,
+            ocr_backend=args.ocr_backend,
         )
 
     for img_path in args.images:

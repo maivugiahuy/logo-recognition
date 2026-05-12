@@ -54,6 +54,7 @@ class LogoRecognitionPipeline:
         ocr_enabled: bool = False,
         ocr_weight: float = DEFAULT_OCR_WEIGHT,
         ocr_rerank_k: int = DEFAULT_OCR_RERANK_K,
+        ocr_backend: str = "easyocr",
     ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         is_dinov2 = backbone in _DINOV2_BACKBONES
@@ -65,6 +66,7 @@ class LogoRecognitionPipeline:
         self.ocr_enabled = ocr_enabled
         self.ocr_weight = ocr_weight
         self.ocr_rerank_k = ocr_rerank_k
+        self.ocr_backend = ocr_backend
 
         self.detector = LogoDetector(weights=detector_weights, conf=conf)
 
@@ -110,7 +112,7 @@ class LogoRecognitionPipeline:
         scores, indices = scores[0], indices[0]
 
         use_gpu = self.device.type == "cuda"
-        ocr_text = run_ocr(crop, gpu=use_gpu)
+        ocr_text = run_ocr(crop, gpu=use_gpu, backend=self.ocr_backend)
 
         best_score, best_idx = -1.0, int(indices[0])
         for vis_score, idx in zip(scores, indices):

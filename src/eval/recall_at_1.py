@@ -97,11 +97,20 @@ def query_vs_gallery(
     return q_embs, q_labels, g_embs, g_labels
 
 
-def _ocr_dataset(ds: LogoDataset, gpu: bool = True) -> list[str]:
-    """Run EasyOCR on every crop in ds (same order as _embed_dataset). Returns list of strings."""
+def _ocr_dataset(
+    ds: LogoDataset,
+    indices: list[int],
+    gpu: bool = True,
+    backend: str = "easyocr",
+    n_workers: int = 1,
+) -> list[str]:
+    """Run OCR on crops at given indices (query subset only). Returns texts in same order."""
+    from concurrent.futures import ThreadPoolExecutor
     from src.retrieval.ocr import run_ocr
-    texts = []
-    for _, row in tqdm(ds.df.iterrows(), total=len(ds.df), desc="OCR crops"):
+
+    rows = [ds.df.iloc[i] for i in indices]
+
+    def _ocr_one(row):
         try:
             img = PILImage.open(row["image_path"]).convert("RGB")
             w, h = img.size
@@ -109,10 +118,20 @@ def _ocr_dataset(ds: LogoDataset, gpu: bool = True) -> list[str]:
                 max(0, int(row["x1"])), max(0, int(row["y1"])),
                 min(w, int(row["x2"])), min(h, int(row["y2"])),
             ))
-            text = run_ocr(crop, gpu=gpu)
+            return run_ocr(crop, gpu=gpu, backend=backend)
         except Exception:
-            text = ""
-        texts.append(text)
+            return ""
+
+    t0 = time.time()
+    if n_workers > 1:
+        with ThreadPoolExecutor(max_workers=n_workers) as exe:
+            texts = list(tqdm(exe.map(_ocr_one, rows), total=len(rows), desc="OCR crops"))
+    else:
+        texts = [_ocr_one(r) for r in tqdm(rows, desc="OCR crops")]
+    elapsed = time.time() - t0
+    n = len(texts)
+    print(f"  {'ocr':15s}: {n} crops  {elapsed:.1f}s  ({1000*elapsed/n:.2f} ms/crop)"
+          f"  [{backend}, workers={n_workers}]")
     return texts
 
 
@@ -185,6 +204,8 @@ def evaluate(
     ocr_enabled: bool = False,
     ocr_weight: float = 0.3,
     ocr_rerank_k: int = 10,
+    ocr_backend: str = "easyocr",
+    ocr_workers: int = 1,
 ) -> dict[str, float]:
     """Full evaluation returning recall@1 for all subsets."""
     is_dinov2 = backbone in _DINOV2_BACKBONES
@@ -222,10 +243,14 @@ def evaluate(
         n_q = min(N_QUERY_PER_CLASS, max(1, len(shuffled) - 1), len(shuffled) // 3 + 1)
         query_idx.extend(shuffled[:n_q])
 
-    # OCR: run on all crops, extract query subset
+    # OCR: query crops only (not full dataset)
     if ocr_enabled:
-        all_ocr_texts = _ocr_dataset(ds, gpu=device.type == "cuda")
-        q_ocr_texts = [all_ocr_texts[i] for i in query_idx]
+        q_ocr_texts = _ocr_dataset(
+            ds, indices=query_idx,
+            gpu=device.type == "cuda",
+            backend=ocr_backend,
+            n_workers=ocr_workers,
+        )
     else:
         q_ocr_texts = None
 

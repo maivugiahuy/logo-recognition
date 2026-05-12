@@ -28,6 +28,11 @@ if __name__ == "__main__":
                         help="Weight for OCR text score in fusion (default: 0.3)")
     parser.add_argument("--ocr_rerank_k", type=int, default=10,
                         help="Top-k candidates to rerank with OCR (default: 10)")
+    parser.add_argument("--ocr_backend", default="easyocr",
+                        choices=["easyocr", "paddle"],
+                        help="OCR backend (default: easyocr)")
+    parser.add_argument("--ocr_workers", type=int, default=1,
+                        help="Parallel OCR workers via ThreadPoolExecutor (default: 1)")
     # Ensemble
     parser.add_argument("--ensemble", action="store_true",
                         help="Evaluate ViT+DINOv2 ensemble (ignores --ckpt/--backbone)")
@@ -42,7 +47,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     setup_logging(__file__)
 
-    ocr_args = dict(ocr_enabled=args.ocr, ocr_weight=args.ocr_weight, ocr_rerank_k=args.ocr_rerank_k)
+    ocr_args = dict(ocr_enabled=args.ocr, ocr_weight=args.ocr_weight,
+                    ocr_rerank_k=args.ocr_rerank_k, ocr_backend=args.ocr_backend,
+                    ocr_workers=args.ocr_workers)
 
     t_total = time.time()
     if args.ensemble:
