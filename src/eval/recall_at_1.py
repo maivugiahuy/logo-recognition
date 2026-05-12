@@ -10,6 +10,7 @@ Subsets:
 """
 import json
 import random
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Literal
@@ -45,12 +46,16 @@ def _embed_dataset(
     """Returns (embs, class_names, min_sides)."""
     loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=4)
     all_embs, all_labels = [], []
+    t0 = time.time()
     with torch.no_grad():
         for imgs, labels in tqdm(loader, desc="Embedding", leave=False):
             embs = embedder(imgs.to(device)).cpu().numpy()
             all_embs.append(embs)
             all_labels.extend(labels.tolist())
     embs = np.concatenate(all_embs).astype("float32")
+    elapsed = time.time() - t0
+    n = len(embs)
+    print(f"  {'embed':15s}: {n} crops  {elapsed:.1f}s  ({1000*elapsed/n:.2f} ms/crop)")
     # Map idx→name
     idx_to_cls = {v: k for k, v in ds.class_to_idx.items()}
     class_names = [idx_to_cls[l] for l in all_labels]
@@ -121,6 +126,7 @@ def compute_recall_at_1(
     q_ocr_texts: list[str] | None = None,
     ocr_weight: float = 0.3,
     ocr_rerank_k: int = 10,
+    _label: str = "",
 ) -> float:
     """
     Compute recall@1.
@@ -129,13 +135,15 @@ def compute_recall_at_1(
     """
     index = faiss.IndexFlatIP(q_embs.shape[1])
     index.add(g_embs)
+    nq = len(q_labels)
 
     if ocr_enabled and q_ocr_texts and not all_vs_all:
         from src.retrieval.ocr import text_similarity
         rerank_k = min(ocr_rerank_k, index.ntotal)
+        t0 = time.time()
         scores_mat, indices_mat = index.search(q_embs, rerank_k)
         correct = 0
-        for qi in range(len(q_labels)):
+        for qi in range(nq):
             ocr_text = q_ocr_texts[qi]
             best_score, best_idx = -1.0, int(indices_mat[qi, 0])
             for vis_score, g_idx in zip(scores_mat[qi], indices_mat[qi]):
@@ -147,16 +155,23 @@ def compute_recall_at_1(
                 if fused > best_score:
                     best_score, best_idx = fused, int(g_idx)
             correct += g_labels[best_idx] == q_labels[qi]
-        return correct / len(q_labels)
+        elapsed = time.time() - t0
+        tag = f"retrieval{' ' + _label if _label else ''}"
+        print(f"  {tag:15s}: {nq} queries  {elapsed:.1f}s  ({1000*elapsed/nq:.2f} ms/query)")
+        return correct / nq
 
     k = 2 if all_vs_all else 1
+    t0 = time.time()
     _, nn_indices = index.search(q_embs, k)  # (Q, k)
+    elapsed = time.time() - t0
+    tag = f"retrieval{' ' + _label if _label else ''}"
+    print(f"  {tag:15s}: {nq} queries  {elapsed:.1f}s  ({1000*elapsed/nq:.2f} ms/query)")
     nn_idx = nn_indices[:, -1]  # last column: 2nd-NN when all_vs_all, else 1st
     correct = sum(
         g_labels[nn_idx[i]] == q_labels[i]
         for i in range(len(q_labels))
     )
-    return correct / len(q_labels)
+    return correct / nq
 
 
 def evaluate(
@@ -218,11 +233,12 @@ def evaluate(
                     ocr_weight=ocr_weight, ocr_rerank_k=ocr_rerank_k)
 
     # all-vs-all (OCR skipped — self-exclusion incompatible with reranking)
-    ava = compute_recall_at_1(embs, class_names, embs, class_names, all_vs_all=True)
+    ava = compute_recall_at_1(embs, class_names, embs, class_names, all_vs_all=True,
+                              _label="all_vs_all")
 
     # query-vs-gallery
     q_embs, q_labels, g_embs, g_labels = query_vs_gallery(embs, class_names)
-    qvg = compute_recall_at_1(q_embs, q_labels, g_embs, g_labels, **ocr_args)
+    qvg = compute_recall_at_1(q_embs, q_labels, g_embs, g_labels, **ocr_args, _label="qvg")
 
     # text subset (Q-vs-G)
     text_mask = [cls.endswith("_text") for cls in q_labels]
@@ -232,7 +248,7 @@ def evaluate(
         t_labels = [q_labels[i] for i in t_idx]
         t_ocr = [q_ocr_texts[i] for i in t_idx] if q_ocr_texts else None
         text_r = compute_recall_at_1(t_embs, t_labels, g_embs, g_labels,
-                                     **{**ocr_args, "q_ocr_texts": t_ocr})
+                                     **{**ocr_args, "q_ocr_texts": t_ocr}, _label="text")
     else:
         text_r = float("nan")
 
@@ -241,7 +257,7 @@ def evaluate(
     small_mask = [s < SMALL_THRESHOLD for s in q_min_sides]
     large_mask = [not m for m in small_mask]
 
-    def subset_recall(mask):
+    def subset_recall(mask, label):
         idx = [i for i, m in enumerate(mask) if m]
         if not idx:
             return float("nan")
@@ -249,10 +265,10 @@ def evaluate(
         sl = [q_labels[i] for i in idx]
         so = [q_ocr_texts[i] for i in idx] if q_ocr_texts else None
         return compute_recall_at_1(se, sl, g_embs, g_labels,
-                                   **{**ocr_args, "q_ocr_texts": so})
+                                   **{**ocr_args, "q_ocr_texts": so}, _label=label)
 
-    small_r = subset_recall(small_mask)
-    large_r = subset_recall(large_mask)
+    small_r = subset_recall(small_mask, "small")
+    large_r = subset_recall(large_mask, "large")
 
     results = {
         "all_vs_all": ava,

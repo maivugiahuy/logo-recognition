@@ -1,4 +1,5 @@
 """Evaluate recall@1 on LogoDet-3K test set."""
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -109,6 +110,7 @@ def run_all(
         print(f"\n{'='*50}")
         print(f"Checkpoint: {label}  |  Dataset: {name.upper()}")
 
+        t0 = time.time()
         results = evaluate(
             ckpt_path=ckpt_path,
             ann_parquet=parquet,
@@ -119,6 +121,8 @@ def run_all(
             ocr_weight=ocr_weight,
             ocr_rerank_k=ocr_rerank_k,
         )
+        elapsed = time.time() - t0
+        print(f"  {'elapsed':15s}: {elapsed:.1f}s")
         all_results[name] = results
 
     return all_results

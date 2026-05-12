@@ -1,6 +1,7 @@
 """Step 7: Evaluate recall@1 on LogoDet-3K test set."""
 import argparse
 import sys
+import time
 sys.path.insert(0, ".")
 from src.eval.run_all import run_all
 from src.utils.logging_utils import setup_logging
@@ -43,6 +44,7 @@ if __name__ == "__main__":
 
     ocr_args = dict(ocr_enabled=args.ocr, ocr_weight=args.ocr_weight, ocr_rerank_k=args.ocr_rerank_k)
 
+    t_total = time.time()
     if args.ensemble:
         from src.eval.recall_at_1 import evaluate_ensemble
         from pathlib import Path
@@ -59,6 +61,7 @@ if __name__ == "__main__":
                 continue
             print(f"\n{'='*50}")
             print(f"Ensemble  |  Dataset: {name.upper()}")
+            t0 = time.time()
             evaluate_ensemble(
                 vit_ckpt=args.vit_ckpt,
                 dinov2_ckpt=args.dinov2_ckpt,
@@ -67,6 +70,7 @@ if __name__ == "__main__":
                 vit_weight=args.vit_weight,
                 ensemble_top_k=args.ensemble_top_k,
             )
+            print(f"  {'elapsed':15s}: {time.time() - t0:.1f}s")
     else:
         ckpts = [args.ckpt] if args.ckpt else DEFAULT_CKPTS
         all_results = {}
@@ -76,3 +80,4 @@ if __name__ == "__main__":
             res = run_all(ckpt, split=args.split, ckpt_label=ckpt, backbone=args.backbone,
                           **ocr_args)
             all_results[ckpt] = res
+    print(f"\nTotal elapsed: {time.time() - t_total:.1f}s")
