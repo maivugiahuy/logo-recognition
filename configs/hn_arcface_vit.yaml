@@ -23,10 +23,10 @@ scheduler:
   patience: 5
   factor: 0.25
 
-early_stopping_patience: 8
+early_stopping_patience: 6
 
 training:
-  epochs: 80
+  epochs: 60
   batch_size: 512   # k=64, m=8
   k: 64
   m: 8

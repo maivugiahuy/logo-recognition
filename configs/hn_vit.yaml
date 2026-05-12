@@ -26,7 +26,7 @@ scheduler:
 early_stopping_patience: 5  # stop if no improvement after 5 epochs
 
 training:
-  epochs: 50
+  epochs: 60
   batch_size: 512   # k=64, m=8
   k: 64             # classes per batch
   m: 8              # images per class
