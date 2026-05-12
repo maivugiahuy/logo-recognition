@@ -26,11 +26,12 @@ from tqdm import tqdm
 from src.data.dataset import LogoDataset
 from src.data.transforms import val_transforms, val_transforms_dinov2
 from src.models.embedder_dinov2 import build_dinov2_embedder
+from src.models.embedder_dinov3 import build_dinov3_embedder
 from src.models.embedder_vit import build_vit_embedder
-from src.models.embedder_vit_s import build_vit_s_embedder
 
 _DINOV2_BACKBONES = {"dinov2_vitb14", "dinov2"}
-_VIT_S_BACKBONES = {"vit_s16"}
+_DINOV3_BACKBONES = {"dinov3_vitb16"}
+_IMAGENET_BACKBONES = _DINOV2_BACKBONES | _DINOV3_BACKBONES
 
 SMALL_THRESHOLD = 70  # 40th percentile of crop min-side ≈ 70px
 N_QUERY_PER_CLASS = 10
@@ -209,23 +210,22 @@ def evaluate(
 ) -> dict[str, float]:
     """Full evaluation returning recall@1 for all subsets."""
     is_dinov2 = backbone in _DINOV2_BACKBONES
-    is_vit_s = backbone in _VIT_S_BACKBONES
+    is_dinov3 = backbone in _DINOV3_BACKBONES
     if input_size is None:
         input_size = 224 if is_dinov2 else 160
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if is_dinov2:
         embedder = build_dinov2_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
-    elif is_vit_s:
-        embedder = build_vit_s_embedder(embed_dim, input_size).to(device)
+    elif is_dinov3:
+        embedder = build_dinov3_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
     else:
         embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
     state = torch.load(ckpt_path, map_location=device)
     embedder.load_state_dict(state["embedder"])
     embedder.eval()
 
-    # ViT-S uses ImageNet normalization (same as DINOv2)
-    transform = val_transforms(input_size) if not (is_dinov2 or is_vit_s) else val_transforms_dinov2(input_size)
+    transform = val_transforms_dinov2(input_size) if backbone in _IMAGENET_BACKBONES else val_transforms(input_size)
     ds = LogoDataset.from_split(
         ann_parquet, split_json, transform=transform, mode=mode
     )
