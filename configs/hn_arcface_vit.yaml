@@ -3,7 +3,7 @@ mode: closed_set
 backbone: vit_b16_openai
 input_size: 160
 embed_dim: 128
-init_from: checkpoints/vit_arcface_base.pt
+init_from: checkpoints/vit_b16_arcface_base.pt
 
 optimizer:
   trunk_lr: 3.0e-6
