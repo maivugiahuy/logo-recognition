@@ -26,11 +26,12 @@ from src.data.transforms import (
     train_transforms, val_transforms,
     train_transforms_dinov2, val_transforms_dinov2,
 )
+from src.losses.arcface import SubCenterArcFaceLoss
 from src.losses.proxynca_hn_pp import ProxyNCAHNPPLoss
 from src.losses.proxynca_pp import ProxyNCAPPLoss
 from src.models.embedder_dinov2 import build_dinov2_embedder
 from src.models.embedder_vit import build_vit_embedder
-from src.models.proxy_head import ProxyHead
+from src.models.proxy_head import ProxyHead, SubCenterProxyHead
 from src.training.optim import build_optimizer
 
 ANN = Path("data/processed/openlogodet3k/annotations.parquet")
@@ -134,7 +135,14 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
         embedder.load_state_dict(state["embedder"], strict=False)
         print(f"Loaded weights from {cfg['init_from']}")
 
-    proxy_head = ProxyHead(train_ds.num_classes, cfg["embed_dim"]).to(device)
+    loss_type = cfg["loss"].get("type", "proxynca")
+    K = cfg["loss"].get("K", 1)
+
+    if loss_type == "arcface":
+        proxy_head = SubCenterProxyHead(train_ds.num_classes, cfg["embed_dim"], K=K).to(device)
+    else:
+        proxy_head = ProxyHead(train_ds.num_classes, cfg["embed_dim"]).to(device)
+
     # proxy init must use full training data, not train_loader with batch_sampler (~m imgs/class).
     init_loader = DataLoader(
         train_ds, batch_size=256, shuffle=False,
@@ -145,11 +153,15 @@ def train(cfg_path: str, ckpt_name: str = "vit_base.pt") -> None:
     embedder.train()
 
     # ── Loss ──────────────────────────────────────────────────────────────
-    sigma = cfg["loss"]["sigma"]
-    if use_hn:
-        criterion = ProxyNCAHNPPLoss(sigma=sigma, hn_map=hn_map)
+    if loss_type == "arcface":
+        criterion = SubCenterArcFaceLoss(
+            scale=cfg["loss"].get("scale", 30.0),
+            margin=cfg["loss"].get("margin", 0.5),
+        )
+    elif use_hn:
+        criterion = ProxyNCAHNPPLoss(sigma=cfg["loss"]["sigma"], hn_map=hn_map)
     else:
-        criterion = ProxyNCAPPLoss(sigma=sigma)
+        criterion = ProxyNCAPPLoss(sigma=cfg["loss"]["sigma"])
 
     # ── Optimizer ─────────────────────────────────────────────────────────
     # build_optimizer BEFORE torch.compile to avoid unstable id(param)

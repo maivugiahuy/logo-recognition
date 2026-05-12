@@ -1,0 +1,51 @@
+# Phase A: open-set ViT-B/32 + ArcFace (K=1, standard)
+mode: open_set
+backbone: vit_b32_openai
+input_size: 160
+embed_dim: 128
+
+optimizer:
+  trunk_lr: 2.3e-6
+  fc_lr: 1.5e-3
+  proxy_lr: 0.05       # ArcFace weights are cosine-space; much smaller than ProxyNCA++ 71
+  trunk_wd: 0.2
+  fc_wd: 0.001
+  proxy_wd: 0.0
+  trunk_beta2: 0.98
+  fc_beta2: 0.98
+  proxy_beta2: 0.999
+  trunk_eps: 1.0e-6
+  fc_eps: 1.0e-6
+  proxy_eps: 1.0e-8
+
+scheduler:
+  patience: 5
+  factor: 0.25
+
+early_stopping_patience: 5
+
+training:
+  epochs: 50
+  batch_size: 512   # k=64, m=8
+  k: 64
+  m: 8
+
+amp: true
+compile: false
+num_workers: 10
+persistent_workers: true
+freeze_blocks: 0
+
+loss:
+  type: arcface
+  K: 1              # standard ArcFace for Phase A
+  scale: 30.0       # logit scale s
+  margin: 0.5       # angular margin m (radians ≈ 28.6°)
+
+data:
+  split: open_set
+  min_side: 10
+
+augmentation:
+  color_jitter: true
+  random_perspective: true
