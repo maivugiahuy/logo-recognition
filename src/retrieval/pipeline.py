@@ -64,10 +64,13 @@ class LogoRecognitionPipeline:
         elif is_dinov3:
             embedder = build_dinov3_embedder(embed_dim, input_size, freeze_blocks=0).to(self.device)
         else:
-            embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(self.device)
+            embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0, backbone=backbone).to(self.device)
         state = torch.load(embedder_ckpt, map_location=self.device)
         embedder.load_state_dict(state["embedder"])
         embedder.eval()
+        # Warmup: trigger CUDA kernel compile so first real inference is not skewed
+        with torch.no_grad():
+            embedder(torch.zeros(1, 3, input_size, input_size, device=self.device))
         self.embedder = embedder
 
         self.index, self.gallery_labels = load_gallery(gallery_name)

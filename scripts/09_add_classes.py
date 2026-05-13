@@ -96,6 +96,14 @@ def add_with_detector(
     shutil.rmtree(tmp_dir)
 
 
+_MODEL_PRESETS = {
+    "b16_hn":   ("checkpoints/vit_b16_arcface_hn.pt",  "vit_b16_openai"),
+    "b16_base": ("checkpoints/vit_b16_arcface_base.pt", "vit_b16_openai"),
+    "dinov3":   ("checkpoints/dinov3_arcface_base.pt",  "dinov3_vitb16"),
+    "b32_hn":   ("checkpoints/vit_hn.pt",               "vit_b32_openai"),
+    "b32_base": ("checkpoints/vit_base.pt",             "vit_b32_openai"),
+}
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Add new classes to the gallery from data/new_classes/ (each subfolder = 1 class)"
@@ -110,7 +118,13 @@ if __name__ == "__main__":
                         help="YOLO confidence threshold (default: 0.1)")
     parser.add_argument("--gallery", default="new_classes",
                         help="Gallery to update (default: new_classes; use 'openlogodet3k' for eval gallery)")
-    parser.add_argument("--embedder", default="checkpoints/vit_hn.pt")
+    parser.add_argument("--model", default=None, choices=list(_MODEL_PRESETS),
+                        help="Model preset — overrides --embedder/--backbone. "
+                             "Choices: b16_hn (default best), b16_base, dinov3, b32_hn, b32_base")
+    parser.add_argument("--embedder", default="checkpoints/vit_b16_arcface_hn.pt")
+    parser.add_argument("--backbone", default="vit_b16_openai",
+                        choices=["vit_b16_openai", "vit_b32_openai", "dinov2_vitb14", "dinov3_vitb16"],
+                        help="Embedder backbone matching the checkpoint (default: vit_b16_openai)")
     parser.add_argument("--on_duplicate", default="ask",
                         choices=["ask", "append", "replace", "skip"],
                         help="How to handle existing class: ask/append/replace/skip (default: ask)")
@@ -119,6 +133,9 @@ if __name__ == "__main__":
     parser.add_argument("--remove", default=None, metavar="CLASS",
                         help="Remove a class from gallery")
     args = parser.parse_args()
+
+    if args.model:
+        args.embedder, args.backbone = _MODEL_PRESETS[args.model]
 
     setup_logging(__file__)
 
@@ -131,7 +148,7 @@ if __name__ == "__main__":
         remove_from_gallery(args.remove, args.gallery)
         sys.exit(0)
 
-    common_kwargs = dict(dataset_name=args.gallery, ckpt_path=args.embedder)
+    common_kwargs = dict(dataset_name=args.gallery, ckpt_path=args.embedder, backbone=args.backbone)
     detector_kwargs = dict(detector_weights=args.detector, conf=args.det_conf)
 
     def resolve_duplicate_action(class_name: str) -> str:

@@ -56,15 +56,26 @@ def draw_results(image_path: str, results: list[dict], out_path: str | None = No
         img.show()
 
 
+_MODEL_PRESETS = {
+    "b16_hn":   ("checkpoints/vit_b16_arcface_hn.pt",  "vit_b16_openai"),
+    "b16_base": ("checkpoints/vit_b16_arcface_base.pt", "vit_b16_openai"),
+    "dinov3":   ("checkpoints/dinov3_arcface_base.pt",  "dinov3_vitb16"),
+    "b32_hn":   ("checkpoints/vit_hn.pt",               "vit_b32_openai"),
+    "b32_base": ("checkpoints/vit_base.pt",             "vit_b32_openai"),
+}
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("images", nargs="+", help="Image paths")
+    parser.add_argument("--model", default=None, choices=list(_MODEL_PRESETS),
+                        help="Model preset — overrides --embedder/--backbone. "
+                             "Choices: b16_hn (default best), b16_base, dinov3, b32_hn, b32_base")
     parser.add_argument("--detector", default="runs/detect/checkpoints/yolov8_logo/weights/best.pt")
-    parser.add_argument("--embedder", default="checkpoints/vit_hn.pt")
+    parser.add_argument("--embedder", default="checkpoints/vit_b16_arcface_hn.pt")
     parser.add_argument("--gallery", default="openlogodet3k",
                         help="Gallery name: 'openlogodet3k' (eval, default) or 'new_classes' (user-added via add_classes.py)")
     parser.add_argument("--backbone", default="vit_b16_openai",
-                        choices=["vit_b16_openai", "dinov2_vitb14", "dinov3_vitb16"],
+                        choices=["vit_b16_openai", "vit_b32_openai", "dinov2_vitb14", "dinov3_vitb16"],
                         help="Embedder backbone (default: vit_b16_openai)")
     parser.add_argument("--input_size", type=int, default=None,
                         help="Override input resolution (default: 160 for ViT, 168 for DINOv2)")
@@ -73,17 +84,20 @@ if __name__ == "__main__":
                         help="Cosine similarity threshold below which logo is 'unknown' (default: 0.50)")
     # Ensemble mode
     parser.add_argument("--ensemble", action="store_true",
-                        help="Use ViT+DINOv2 ensemble (ignores --backbone/--embedder/--gallery)")
-    parser.add_argument("--vit_ckpt", default="checkpoints/vit_hn.pt")
+                        help="Use ViT+DINOv3 ensemble (ignores --backbone/--embedder/--gallery)")
+    parser.add_argument("--vit_ckpt", default="checkpoints/vit_b16_arcface_hn.pt")
     parser.add_argument("--vit_gallery", default="openlogodet3k")
-    parser.add_argument("--dinov2_ckpt", default="checkpoints/dinov2_hn.pt")
+    parser.add_argument("--dinov2_ckpt", default="checkpoints/dinov3_arcface_base.pt")
     parser.add_argument("--dinov2_gallery", default="openlogodet3k_dinov2")
     parser.add_argument("--vit_weight", type=float, default=0.5,
                         help="ViT score weight in ensemble fusion (default: 0.5)")
-    parser.add_argument("--save_dir", default=None)
+    parser.add_argument("--save_dir", default="results/test")
     parser.add_argument("--save_crops", action="store_true",
                         help="Save each detected logo crop as a separate image")
     args = parser.parse_args()
+
+    if args.model:
+        args.embedder, args.backbone = _MODEL_PRESETS[args.model]
 
     setup_logging(__file__)
     print("Loading pipeline...")

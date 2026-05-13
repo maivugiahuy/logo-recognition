@@ -24,26 +24,25 @@ from tqdm import tqdm
 
 from src.data.transforms import val_transforms, val_transforms_dinov2
 from src.models.embedder_dinov2 import build_dinov2_embedder
+from src.models.embedder_dinov3 import build_dinov3_embedder
 from src.models.embedder_vit import build_vit_embedder
-from src.models.embedder_vit_s import build_vit_s_embedder
 
 GALLERY_DIR = Path("data/galleries")
 CKPT = Path("checkpoints/vit_hn.pt")
 _DINOV2_BACKBONES = {"dinov2_vitb14", "dinov2"}
-_VIT_S_BACKBONES = {"vit_s16"}
+_DINOV3_BACKBONES = {"dinov3_vitb16"}
+_IMAGENET_BACKBONES = _DINOV2_BACKBONES | _DINOV3_BACKBONES
 
 
 def _load_embedder(backbone: str, embed_dim: int, input_size: int,
                    ckpt_path: str | Path, device: torch.device):
     if backbone in _DINOV2_BACKBONES:
         embedder = build_dinov2_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
-        transform = val_transforms_dinov2(input_size)
-    elif backbone in _VIT_S_BACKBONES:
-        embedder = build_vit_s_embedder(embed_dim, input_size).to(device)
-        transform = val_transforms_dinov2(input_size)  # ImageNet norm
+    elif backbone in _DINOV3_BACKBONES:
+        embedder = build_dinov3_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
     else:
-        embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0).to(device)
-        transform = val_transforms(input_size)
+        embedder = build_vit_embedder(embed_dim, input_size, freeze_blocks=0, backbone=backbone).to(device)
+    transform = val_transforms_dinov2(input_size) if backbone in _IMAGENET_BACKBONES else val_transforms(input_size)
     state = torch.load(ckpt_path, map_location=device)
     embedder.load_state_dict(state["embedder"])
     embedder.eval()

@@ -2,6 +2,7 @@
 from pathlib import Path
 from typing import Union
 
+import numpy as np
 import torch
 from ultralytics import YOLO
 
@@ -20,6 +21,10 @@ class LogoDetector:
         self.iou = iou
         self.imgsz = imgsz
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        # Warmup: trigger CUDA kernel compile so first real inference is not skewed
+        dummy = np.zeros((imgsz, imgsz, 3), dtype=np.uint8)
+        self.model.predict(dummy, conf=conf, iou=iou, imgsz=imgsz,
+                           device=self.device, verbose=False)
 
     def detect(self, image_path: str | Path) -> list[dict]:
         """

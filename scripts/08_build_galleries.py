@@ -13,10 +13,14 @@ DATASETS = {
     "openlogodet3k": "data/processed/openlogodet3k_test.parquet",
 }
 
-_DINOV2_DEFAULT_CKPT = "checkpoints/dinov2_hn.pt"
-_VIT_DEFAULT_CKPT = "checkpoints/vit_hn.pt"
-_DINOV2_INPUT_SIZE = 168
-_VIT_INPUT_SIZE = 160
+# (checkpoint, backbone, gallery_suffix)
+_MODEL_PRESETS = {
+    "b16_hn":   ("checkpoints/vit_b16_arcface_hn.pt",  "vit_b16_openai", ""),
+    "b16_base": ("checkpoints/vit_b16_arcface_base.pt", "vit_b16_openai", "_b16_base"),
+    "dinov3":   ("checkpoints/dinov3_arcface_base.pt",  "dinov3_vitb16",  "_dinov3"),
+    "b32_hn":   ("checkpoints/vit_hn.pt",               "vit_b32_openai", "_b32"),
+    "b32_base": ("checkpoints/vit_base.pt",             "vit_b32_openai", "_b32_base"),
+}
 
 
 def _ensure_per_ds_parquet(name: str, parquet_path: str) -> None:
@@ -31,21 +35,27 @@ def _ensure_per_ds_parquet(name: str, parquet_path: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--backbone", default="vit_b32_openai",
-                        choices=["vit_b32_openai", "dinov2_vitb14"],
-                        help="Backbone used to embed the gallery (default: vit_b32_openai)")
-    parser.add_argument("--ckpt", default=None,
-                        help="Checkpoint path (default: vit_hn.pt or dinov2_hn.pt based on backbone)")
+    parser.add_argument("--model", default=None, choices=list(_MODEL_PRESETS),
+                        help="Model preset — overrides --ckpt/--backbone/--suffix. "
+                             "Choices: b16_hn (default best), b16_base, dinov3, b32_hn, b32_base")
+    parser.add_argument("--backbone", default="vit_b16_openai",
+                        choices=["vit_b16_openai", "vit_b32_openai", "dinov2_vitb14", "dinov3_vitb16"],
+                        help="Backbone used to embed the gallery (default: vit_b16_openai)")
+    parser.add_argument("--ckpt", default="checkpoints/vit_b16_arcface_hn.pt",
+                        help="Checkpoint path")
     parser.add_argument("--suffix", default=None,
-                        help="Gallery name suffix, e.g. '_dinov2' → 'openlogodet3k_dinov2' (auto-set for dinov2)")
+                        help="Gallery name suffix, e.g. '_dinov3' → 'openlogodet3k_dinov3' (auto-set by --model)")
     args = parser.parse_args()
+
+    if args.model:
+        args.ckpt, args.backbone, auto_suffix = _MODEL_PRESETS[args.model]
+        if args.suffix is None:
+            args.suffix = auto_suffix
 
     setup_logging(__file__)
 
-    is_dinov2 = args.backbone == "dinov2_vitb14"
-    ckpt = args.ckpt or (_DINOV2_DEFAULT_CKPT if is_dinov2 else _VIT_DEFAULT_CKPT)
-    input_size = _DINOV2_INPUT_SIZE if is_dinov2 else _VIT_INPUT_SIZE
-    suffix = args.suffix if args.suffix is not None else ("_dinov2" if is_dinov2 else "")
+    input_size = 168 if args.backbone == "dinov2_vitb14" else 160
+    suffix = args.suffix if args.suffix is not None else ""
 
     for base_name, parquet in DATASETS.items():
         gallery_name = base_name + suffix
@@ -54,7 +64,7 @@ if __name__ == "__main__":
         if not Path(parquet).exists() or pd.read_parquet(parquet).empty:
             print(f"  [SKIP] {parquet} empty")
             continue
-        build_gallery(parquet, gallery_name, ckpt_path=ckpt,
+        build_gallery(parquet, gallery_name, ckpt_path=args.ckpt,
                       input_size=input_size, backbone=args.backbone)
 
     print("\nGallery built.")
