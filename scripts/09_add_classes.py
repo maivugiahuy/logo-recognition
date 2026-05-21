@@ -96,12 +96,13 @@ def add_with_detector(
     shutil.rmtree(tmp_dir)
 
 
+# (checkpoint, backbone, gallery_suffix)
 _MODEL_PRESETS = {
-    "b16_hn":   ("checkpoints/vit_b16_arcface_hn.pt",  "vit_b16_openai"),
-    "b16_base": ("checkpoints/vit_b16_arcface_base.pt", "vit_b16_openai"),
-    "dinov3":   ("checkpoints/dinov3_arcface_base.pt",  "dinov3_vitb16"),
-    "b32_hn":   ("checkpoints/vit_hn.pt",               "vit_b32_openai"),
-    "b32_base": ("checkpoints/vit_base.pt",             "vit_b32_openai"),
+    "b16_hn":   ("checkpoints/vit_b16_arcface_hn.pt",  "vit_b16_openai", ""),
+    "b16_base": ("checkpoints/vit_b16_arcface_base.pt", "vit_b16_openai", "_b16_base"),
+    "dinov3":   ("checkpoints/dinov3_arcface_base.pt",  "dinov3_vitb16",  "_dinov3"),
+    "b32_hn":   ("checkpoints/vit_hn.pt",               "vit_b32_openai", "_b32"),
+    "b32_base": ("checkpoints/vit_base.pt",             "vit_b32_openai", "_b32_base"),
 }
 
 if __name__ == "__main__":
@@ -125,6 +126,8 @@ if __name__ == "__main__":
     parser.add_argument("--backbone", default="vit_b16_openai",
                         choices=["vit_b16_openai", "vit_b32_openai", "dinov2_vitb14", "dinov3_vitb16"],
                         help="Embedder backbone matching the checkpoint (default: vit_b16_openai)")
+    parser.add_argument("--suffix", default=None,
+                        help="Gallery name suffix, e.g. '_dinov3' → 'new_classes_dinov3' (auto-set by --model)")
     parser.add_argument("--on_duplicate", default="ask",
                         choices=["ask", "append", "replace", "skip"],
                         help="How to handle existing class: ask/append/replace/skip (default: ask)")
@@ -135,7 +138,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.model:
-        args.embedder, args.backbone = _MODEL_PRESETS[args.model]
+        args.embedder, args.backbone, auto_suffix = _MODEL_PRESETS[args.model]
+        if args.suffix is None:
+            args.suffix = auto_suffix
+
+    suffix = args.suffix if args.suffix is not None else ""
+    args.gallery = args.gallery + suffix
 
     setup_logging(__file__)
 

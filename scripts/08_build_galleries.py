@@ -1,13 +1,15 @@
-"""Step 8: Build FAISS gallery for LogoDet-3K evaluation dataset."""
+"""Step 8: Build FAISS galleries (eval + new_classes) for a given model."""
 import argparse
 import sys
 from pathlib import Path
 sys.path.insert(0, ".")
 import pandas as pd
-from src.retrieval.gallery import build_gallery
+from src.retrieval.gallery import build_gallery, add_to_gallery
 from src.utils.logging_utils import setup_logging
 
 ANN = Path("data/processed/openlogodet3k/annotations.parquet")
+NEW_CLASSES_DIR = Path("data/new_classes")
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 DATASETS = {
     "openlogodet3k": "data/processed/openlogodet3k_test.parquet",
@@ -33,6 +35,36 @@ def _ensure_per_ds_parquet(name: str, parquet_path: str) -> None:
     print(f"  Created {p} ({len(df)} objects)")
 
 
+def _build_new_classes_gallery(gallery_name: str, ckpt_path: str,
+                               backbone: str, input_size: int) -> None:
+    """Build new_classes gallery from data/new_classes/ subfolders."""
+    if not NEW_CLASSES_DIR.exists():
+        print(f"\n=== Skipping {gallery_name}: {NEW_CLASSES_DIR} not found ===")
+        return
+
+    subfolders = sorted(p for p in NEW_CLASSES_DIR.iterdir() if p.is_dir())
+    if not subfolders:
+        print(f"\n=== Skipping {gallery_name}: no subfolders in {NEW_CLASSES_DIR} ===")
+        return
+
+    print(f"\n=== Building gallery: {gallery_name} from {NEW_CLASSES_DIR} ({len(subfolders)} classes) ===")
+    for subfolder in subfolders:
+        imgs = sorted(p for p in subfolder.iterdir() if p.suffix.lower() in IMAGE_EXTS)
+        if not imgs:
+            print(f"  [SKIP] {subfolder.name}: no images")
+            continue
+        print(f"  {subfolder.name}: {len(imgs)} images")
+        add_to_gallery(
+            image_paths=imgs,
+            brand_name=subfolder.name,
+            dataset_name=gallery_name,
+            ckpt_path=ckpt_path,
+            input_size=input_size,
+            backbone=backbone,
+            on_duplicate="replace",
+        )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default=None, choices=list(_MODEL_PRESETS),
@@ -45,6 +77,10 @@ if __name__ == "__main__":
                         help="Checkpoint path")
     parser.add_argument("--suffix", default=None,
                         help="Gallery name suffix, e.g. '_dinov3' → 'openlogodet3k_dinov3' (auto-set by --model)")
+    parser.add_argument("--skip_eval", action="store_true",
+                        help="Skip building eval (openlogodet3k) gallery")
+    parser.add_argument("--skip_new_classes", action="store_true",
+                        help="Skip building new_classes gallery")
     args = parser.parse_args()
 
     if args.model:
@@ -57,14 +93,19 @@ if __name__ == "__main__":
     input_size = 168 if args.backbone == "dinov2_vitb14" else 160
     suffix = args.suffix if args.suffix is not None else ""
 
-    for base_name, parquet in DATASETS.items():
-        gallery_name = base_name + suffix
-        print(f"\n=== Building gallery: {gallery_name} (backbone={args.backbone}) ===")
-        _ensure_per_ds_parquet(base_name, parquet)
-        if not Path(parquet).exists() or pd.read_parquet(parquet).empty:
-            print(f"  [SKIP] {parquet} empty")
-            continue
-        build_gallery(parquet, gallery_name, ckpt_path=args.ckpt,
-                      input_size=input_size, backbone=args.backbone)
+    if not args.skip_eval:
+        for base_name, parquet in DATASETS.items():
+            gallery_name = base_name + suffix
+            print(f"\n=== Building gallery: {gallery_name} (backbone={args.backbone}) ===")
+            _ensure_per_ds_parquet(base_name, parquet)
+            if not Path(parquet).exists() or pd.read_parquet(parquet).empty:
+                print(f"  [SKIP] {parquet} empty")
+                continue
+            build_gallery(parquet, gallery_name, ckpt_path=args.ckpt,
+                          input_size=input_size, backbone=args.backbone)
 
-    print("\nGallery built.")
+    if not args.skip_new_classes:
+        nc_gallery = "new_classes" + suffix
+        _build_new_classes_gallery(nc_gallery, args.ckpt, args.backbone, input_size)
+
+    print("\nDone.")
