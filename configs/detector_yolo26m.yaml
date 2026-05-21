@@ -1,9 +1,9 @@
-# Class-agnostic logo detector — YOLO11m
+# Class-agnostic logo detector — YOLO26m
 model: yolo26m.pt
 data: data/processed/detector_yolo/dataset.yaml
 imgsz: 512
 epochs: 50
-batch: 64
+batch: 100
 device: 0
 project: runs/detect/checkpoints
 name: yolo26m_logo
