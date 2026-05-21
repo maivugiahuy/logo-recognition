@@ -3,7 +3,7 @@ model: yolo26m.pt
 data: data/processed/detector_yolo/dataset.yaml
 imgsz: 512
 epochs: 50
-batch: 100
+batch: 64
 device: 0
 project: runs/detect/checkpoints
 name: yolo26m_logo
