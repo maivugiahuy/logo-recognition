@@ -253,10 +253,13 @@ Output: `data/galleries/openlogodet3k.faiss` + `data/galleries/openlogodet3k_lab
 
 ### Step 9 — Add new classes (no retraining)
 
-Place logo images in `data/new_classes/{class_name}/`, then:
+Place logo images in `{folder_root}/{class_name}/` (one subfolder per class), then:
 ```bash
-# Add all subfolders → new_classes gallery
+# Add all subfolders → new_classes gallery (default folder_root = data/new_classes)
 python scripts/09_add_classes.py
+
+# Use the test/new_classes staging folder instead
+python scripts/09_add_classes.py --folder_root test/new_classes
 
 # Use YOLO to crop logos before embedding
 python scripts/09_add_classes.py --use_detector
@@ -274,29 +277,40 @@ python scripts/09_add_classes.py --remove nike
 ### Step 10 — Demo
 
 ```bash
-# ViT-B/16 pipeline (main)
-python scripts/10_demo.py your_image.jpg --embedder checkpoints/vit_b16_arcface_hn.pt --backbone vit_b16_openai --save_dir results/
+# ViT-B/16 pipeline (main) — input from test/input/, output to test/output/
+python scripts/10_demo.py test/input/your_image.jpg --embedder checkpoints/vit_b16_arcface_hn.pt --backbone vit_b16_openai --save_dir test/output
 
 # DINOv3 pipeline
-python scripts/10_demo.py your_image.jpg --embedder checkpoints/dinov3_arcface_base.pt --backbone dinov3_vitb16 --save_dir results/
+python scripts/10_demo.py test/input/your_image.jpg --embedder checkpoints/dinov3_arcface_base.pt --backbone dinov3_vitb16 --save_dir test/output
 
 # Ensemble
-python scripts/10_demo.py your_image.jpg --ensemble --save_dir results/
+python scripts/10_demo.py test/input/your_image.jpg --ensemble --save_dir test/output
 
 # User-added classes gallery
-python scripts/10_demo.py your_image.jpg --gallery new_classes --save_dir results/
+python scripts/10_demo.py test/input/your_image.jpg --gallery new_classes --save_dir test/output
 
 # Tune unknown threshold (default 0.50)
-python scripts/10_demo.py your_image.jpg --unknown_threshold 0.65 --save_dir results/
+python scripts/10_demo.py test/input/your_image.jpg --unknown_threshold 0.65 --save_dir test/output
 
 # Save cropped logo detections
-python scripts/10_demo.py your_image.jpg --save_crops --save_dir results/
+python scripts/10_demo.py test/input/your_image.jpg --save_crops --save_dir test/output
 ```
 
 **Inference pipeline:** YOLO detect → crop → embed (160×160) → FAISS top-1 → label
 
 - Box colored = recognized (score ≥ threshold), color per brand
 - Box **orange** = unknown (score < threshold)
+
+### Step 11 — Web demo (Gradio)
+
+```bash
+python scripts/app.py
+```
+Browser UI for the ViT-B/16 pipeline. Upload an image → detect + recognize, with sliders for detector confidence and unknown threshold. Optionally filter retrieval to a subset of classes via the class dropdown (empty = full gallery).
+
+**Add new brands at runtime** (no retraining): enter a brand name + upload reference images → embedded into a per-session `new_classes` gallery and merged into the class dropdown. `on_duplicate` controls append/replace/skip.
+
+> The `new_classes*` galleries are **wiped on every startup** — runtime-added brands do not persist across restarts. For persistent additions, use `scripts/09_add_classes.py` against the `openlogodet3k` gallery.
 
 ### Utility — List training classes
 ```bash

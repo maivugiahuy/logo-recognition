@@ -8,7 +8,6 @@ __pycache__/
 .claude/
 CLAUDE.md
 runs/
-docs/
 results/
 /logs
 /test

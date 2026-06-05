@@ -120,21 +120,31 @@ def _ensure_pipeline(model_name: str, conf: float, threshold: float):
 
 
 def _build_sub_index(selected: list[str]):
-    """Build FAISS sub-index from selected classes + all new_classes entries."""
-    embs = _state["gallery_embs"]
-    labels = _state["gallery_labels_full"]
-    if embs is None or not labels or not selected:
+    """Build FAISS sub-index from selected classes (main gallery + new_classes filtered by selection)."""
+    if not selected:
         return None, None
     sel_set = set(selected)
-    mask = [i for i, l in enumerate(labels) if l in sel_set]
-    if not mask:
-        return None, None
-    sub_embs = [embs[mask].astype("float32")]
-    sub_labels = [labels[i] for i in mask]
-    # Append new_classes vectors (always included when present)
+    sub_embs = []
+    sub_labels = []
+
+    # Main gallery subset
+    embs = _state["gallery_embs"]
+    labels = _state["gallery_labels_full"]
+    if embs is not None and labels:
+        mask = [i for i, l in enumerate(labels) if l in sel_set]
+        if mask:
+            sub_embs.append(embs[mask].astype("float32"))
+            sub_labels += [labels[i] for i in mask]
+
+    # new_classes subset (only selected brands, not all)
     if _nc_state["embs"] is not None and _nc_state["labels"]:
-        sub_embs.append(_nc_state["embs"].astype("float32"))
-        sub_labels = sub_labels + _nc_state["labels"]
+        nc_mask = [i for i, l in enumerate(_nc_state["labels"]) if l in sel_set]
+        if nc_mask:
+            sub_embs.append(_nc_state["embs"][nc_mask].astype("float32"))
+            sub_labels += [_nc_state["labels"][i] for i in nc_mask]
+
+    if not sub_embs:
+        return None, None
     all_embs = np.concatenate(sub_embs)
     sub_idx = faiss.IndexFlatIP(all_embs.shape[1])
     sub_idx.add(all_embs)
@@ -184,11 +194,9 @@ def on_model_change(model_name: str):
     _, _, _, gallery_name = MODEL_PRESETS[model_name]
     classes = _load_gallery_meta(gallery_name)
     _reload_nc(model_name)
-    return gr.update(choices=classes, value=[])
-
-
-def cb_select_all():
-    return gr.update(value=list(_state["gallery_unique"] or []))
+    nc_brands = sorted(set(_nc_state["labels"])) if _nc_state["labels"] else []
+    all_choices = sorted(set(classes + nc_brands))
+    return gr.update(choices=all_choices, value=[])
 
 
 def cb_clear():
@@ -198,15 +206,15 @@ def cb_clear():
 def run_inference(image_path, model_name, selected_classes, conf, threshold):
     if image_path is None:
         return None, "Upload an image first.", []
-    # Empty selection = use full gallery
-    if not selected_classes:
-        selected_classes = list(_state["gallery_unique"] or [])
-
     pipeline = _ensure_pipeline(model_name, conf, threshold)
 
     all_unique = set(_state["gallery_unique"] or [])
-    use_full = set(selected_classes) == all_unique
+    use_full = not selected_classes or set(selected_classes) == all_unique
     has_nc = _nc_state["embs"] is not None and bool(_nc_state["labels"])
+
+    # Normalize: empty = full gallery
+    if not selected_classes:
+        selected_classes = list(all_unique)
 
     orig_index = orig_labels = None
     if not use_full:
@@ -259,9 +267,9 @@ def run_inference(image_path, model_name, selected_classes, conf, threshold):
 
 def add_new_brand(brand_name: str, files, on_duplicate: str, model_name: str):
     if not brand_name or not brand_name.strip():
-        return "Enter a brand name.", gr.update()
+        return "Enter a brand name.", gr.update(), gr.update()
     if not files:
-        return "Upload at least one image.", gr.update()
+        return "Upload at least one image.", gr.update(), gr.update()
     brand_name = brand_name.strip()
     ckpt, backbone, input_size, _ = MODEL_PRESETS[model_name]
     nc_name = _nc_gallery_name(model_name)
@@ -281,17 +289,29 @@ def add_new_brand(brand_name: str, files, on_duplicate: str, model_name: str):
             on_duplicate=on_duplicate,
         )
     except Exception as e:
-        return f"Error: {e}", gr.update()
+        return f"Error: {e}", gr.update(), gr.update()
 
     _reload_nc(model_name)
     nc_brands = sorted(set(_nc_state["labels"])) if _nc_state["labels"] else []
     status = f"Added '{brand_name}' to {nc_name}. Gallery now has {len(nc_brands)} brand(s)."
-    return status, gr.update(value="\n".join(nc_brands))
+
+    # Merge new_classes into class_select choices
+    main_classes = list(_state["gallery_unique"] or [])
+    all_choices = sorted(set(main_classes + nc_brands))
+    return status, gr.update(value="\n".join(nc_brands)), gr.update(choices=all_choices)
 
 
 # --- Layout ---
 
 _DEFAULT_MODEL = "ViT-B/16 ArcFace HN"
+
+# Delete all new_classes gallery files on startup
+for _suffix in _NC_SUFFIX.values():
+    _nc_name = "new_classes" + _suffix
+    for _ext in (".faiss", "_labels.json"):
+        _p = GALLERY_DIR / f"{_nc_name}{_ext}"
+        if _p.exists():
+            _p.unlink()
 
 with gr.Blocks(title="Logo Recognition Demo") as demo:
     gr.Markdown(
@@ -312,9 +332,7 @@ with gr.Blocks(title="Logo Recognition Demo") as demo:
             thr_sl  = gr.Slider(0.00, 1.00, value=0.50, step=0.05, label="Unknown Threshold")
             run_btn = gr.Button("Run Recognition", variant="primary", size="lg")
             with gr.Group():
-                with gr.Row():
-                    btn_all = gr.Button("Select All", size="sm", variant="secondary")
-                    btn_clr = gr.Button("Clear",      size="sm", variant="secondary")
+                btn_clr = gr.Button("Clear", size="sm", variant="secondary")
                 class_select = gr.Dropdown(
                     choices=[],
                     multiselect=True,
@@ -360,8 +378,7 @@ with gr.Blocks(title="Logo Recognition Demo") as demo:
     # ── Events ──────────────────────────────────────────────────────────────
     demo.load(fn=on_model_change,  inputs=model_dd,  outputs=class_select)
     model_dd.change(fn=on_model_change, inputs=model_dd, outputs=class_select)
-    btn_all.click(fn=cb_select_all, outputs=class_select)
-    btn_clr.click(fn=cb_clear,      outputs=class_select)
+    btn_clr.click(fn=cb_clear, outputs=class_select)
     run_btn.click(
         fn=run_inference,
         inputs=[image_input, model_dd, class_select, conf_sl, thr_sl],
@@ -370,7 +387,7 @@ with gr.Blocks(title="Logo Recognition Demo") as demo:
     add_btn.click(
         fn=add_new_brand,
         inputs=[brand_name_in, brand_files, dup_dd, model_dd],
-        outputs=[add_status, nc_brands],
+        outputs=[add_status, nc_brands, class_select],
     )
 
 if __name__ == "__main__":
